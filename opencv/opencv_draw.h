@@ -11,7 +11,7 @@ extern "C" {
 #include "heimann_drv.h"
 #include "colormap.h"
 
-// #include "sdl2_draw.h"
+#include "mix415_drv.h"
 
 
 #define WINDOW_WIDTH 640
@@ -26,7 +26,8 @@ extern "C" {
 #define OFFSET_X ((WINDOW_WIDTH - IMAGE_WIDTH) / 2)
 #define OFFSET_Y ((WINDOW_HEIGHT - IMAGE_HEIGHT) / 2)
 
-int opencv_main(uint16_t* data_pixel);
+int cv_show_heimann_classic(const uint16_t* data_pixel);
+void draw_roi_frame(const uint8_t* y_plane);
 
 #ifdef __cplusplus
 }

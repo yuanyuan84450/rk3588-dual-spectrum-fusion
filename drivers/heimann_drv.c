@@ -7,7 +7,6 @@
 #include <sys/types.h>
 
 #include "heimann_drv.h"
-// #include "sdl2_draw.h"
 #include "opencv_draw.h"
  
 mlx_characteristics_t DevConst = {
@@ -1574,11 +1573,7 @@ int sensor_main(int argc,char *argv[])
     // 设置 poll 结构体
     struct pollfd fds;
 
-    // SDL_Window* win=NULL;
-    // SDL_Renderer* renderer=NULL;
-    
-
-    if(argc!=3){
+    if(argc < 3){
         printf("Wrong use !!!!\n");
         printf("Usage: %s [sensor-i2c6] [eeprom-i2c5]\n",argv[0]);
         return -1; 
@@ -1615,13 +1610,6 @@ int sensor_main(int argc,char *argv[])
 
     fds.fd = timer_fd;
     fds.events = POLLIN;
-
-    // if(sdl2_init(&win, &renderer) == -1){
-    //     printf("sdl2_init failed!\n");
-    //     exit(EXIT_FAILURE);
-    // }
-
-
 
     while(1)
     {
@@ -1662,18 +1650,14 @@ int sensor_main(int argc,char *argv[])
 
             ft_point = (data_pixel[16][16] / 10.0) - 273.15;
             printf("data_pixel[16][16] = %.2f\n",ft_point);
-
-            // sdl2_main(win, renderer, &data_pixel[0][0]);
-            opencv_main(&data_pixel[0][0]);
+            cv_show_heimann_classic(&data_pixel[0][0]);
         }
-
+        usleep(1);
     }
     
     //释放内存和文件
     free(pixc2_0);
     pixc2_0 = NULL;
-
-    // sdl2_free(win, renderer);
 
     close(timer_fd);
     close(sensor_fd);

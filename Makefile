@@ -6,7 +6,7 @@ CFLAGS := -Wall -O2 -Iinclude -Iopencv -MMD -MP
 CXXFLAGS := -Wall -O2 -Iinclude -Iopencv -MMD -MP `pkg-config --cflags opencv4`
 
 LDFLAGS :=
-LDLIBS := -lm `pkg-config --libs opencv4`
+LDLIBS := -lm -lpthread `pkg-config --libs opencv4`
 
 # C 源文件与目标文件
 C_SRC := $(wildcard src/*.c drivers/*.c)

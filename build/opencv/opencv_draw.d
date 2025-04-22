@@ -103,7 +103,8 @@ build/opencv/opencv_draw.o: opencv/opencv_draw.cpp \
  /usr/include/opencv4/opencv2/video/tracking.hpp \
  /usr/include/opencv4/opencv2/video/background_segm.hpp \
  opencv/opencv_draw.h include/heimann_inter.h include/heimann_drv.h \
- include/heimann_reg.h include/colormap.h include/heimann_drv.h
+ include/heimann_reg.h include/colormap.h include/heimann_drv.h \
+ include/mix415_drv.h
 /usr/include/opencv4/opencv2/opencv.hpp:
 /usr/include/opencv4/opencv2/opencv_modules.hpp:
 /usr/include/opencv4/opencv2/core.hpp:
@@ -213,3 +214,4 @@ include/heimann_drv.h:
 include/heimann_reg.h:
 include/colormap.h:
 include/heimann_drv.h:
+include/mix415_drv.h:

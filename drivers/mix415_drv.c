@@ -10,15 +10,7 @@
 #include <sys/mman.h>
 
 #include "mix415_drv.h"
-
-#define CAM_DEVICE "/dev/video11"
-#define WIDTH 3840
-#define HEIGHT 2160
-
-#define ROI_X 1000
-#define ROI_Y 800
-#define ROI_W 640
-#define ROI_H 480
+#include "opencv_draw.h"
 
 struct buffer {
     void *start;
@@ -39,8 +31,8 @@ int cam_main(int argc, char *argv[]) {
     struct v4l2_format fmt;
     memset(&fmt, 0, sizeof(fmt));
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
-    fmt.fmt.pix_mp.width = WIDTH;
-    fmt.fmt.pix_mp.height = HEIGHT;
+    fmt.fmt.pix_mp.width = MIX_WIDTH;
+    fmt.fmt.pix_mp.height = MIX_HEIGHT;
     fmt.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_NV12;
     fmt.fmt.pix_mp.field = V4L2_FIELD_NONE;
 
@@ -136,19 +128,23 @@ int cam_main(int argc, char *argv[]) {
 
         // 提取 Y 分量（灰度图像）并访问 ROI
         uint8_t *y_plane = (uint8_t *)buffers[buf.index].start;
-        for (int y = 0; y < ROI_H; y++) {
-            uint8_t *line = y_plane + (ROI_Y + y) * WIDTH + ROI_X;
-            // 这里可处理 line 中的 ROI_W 宽度数据，比如融合热成像
-            for(int x=0; x<ROI_W; x++){
-                uint8_t gray = line[x];
-                if(x==ROI_W/2 && y ==ROI_H/2)
-                    printf("x[ROI_H/2][ROI_W/2]=%d\n",gray);
-            }
-        }
+        draw_roi_frame(y_plane);
+        // for (int y = 0; y < ROI_H; y++) {
+        //     uint8_t *line = y_plane + (ROI_Y + y) * MIX_WIDTH + ROI_X;
+            
+            // // 这里可处理 line 中的 ROI_W 宽度数据，比如融合热成像
+            // for(int x=0; x<ROI_W; x++){
+            //     uint8_t gray = line[x];
+            //     if(x==ROI_W/2 && y ==ROI_H/2)
+            //         printf("x[ROI_H/2][ROI_W/2]=%d\n",gray);
+            // }
+
+        // }
 
         if (ioctl(fd, VIDIOC_QBUF, &buf) == -1) {
             perror("Requeue Buffer");
         }
+        usleep(1);
     }
 
     // 停止采集

@@ -2,14 +2,12 @@
 
 #include "opencv_draw.h"
 
-
-
 extern void load_colormap(uint8_t index);
 extern uint16_t classic[180];
 extern void get_rgb888_from_rgb565(uint16_t val, uint8_t* r8, uint8_t* g8, uint8_t* b8);
 
 // OpenCV 显示热图
-int opencv_main(uint16_t* data_pixel) {
+int cv_show_heimann_classic(const uint16_t* data_pixel) {
     unsigned short draw_pixel[PIXEL_PER_COLUMN][PIXEL_PER_ROW] = {{0}};
     int temp_inter = 0;
 
@@ -40,4 +38,21 @@ int opencv_main(uint16_t* data_pixel) {
     cv::waitKey(1); // 不阻塞，可设更大等待时间查看慢动作效果
 
     return 0;
+}
+
+void draw_roi_frame(const uint8_t* yuv_data) {
+    // 构造 NV12 原始帧（Y + UV，连续的）
+    cv::Mat nv12(MIX_HEIGHT + MIX_HEIGHT / 2, MIX_WIDTH, CV_8UC1, (void*)yuv_data);
+
+    // 转换为 BGR 彩色图像
+    cv::Mat bgr;
+    cv::cvtColor(nv12, bgr, cv::COLOR_YUV2BGR_NV12);
+
+    // 取 ROI 区域
+    cv::Rect roi_rect(ROI_X, ROI_Y, ROI_W, ROI_H);
+    cv::Mat roi_bgr = bgr(roi_rect);
+
+    // 显示 ROI 彩色图
+    cv::imshow("Visible ROI - Color", roi_bgr);
+    cv::waitKey(1);
 }
