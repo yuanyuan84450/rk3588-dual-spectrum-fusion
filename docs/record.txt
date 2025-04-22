@@ -1,0 +1,8 @@
+可以编译成功的：
+/opt/gcc-arm-10.2-2020.11-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc \
+--sysroot=/opt/sysroot_debian11 \-o sdl2_demo sdl2_demo.c \
+-I/opt/sdl2-rk3588-install/include \
+-L/opt/sdl2-rk3588-install/lib \
+-Wl,-rpath-link=/opt/sysroot_debian11/usr/lib/aarch64-linux-gnu \
+-lSDL2 -lgbm
+
