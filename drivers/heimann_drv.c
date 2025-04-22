@@ -7,7 +7,8 @@
 #include <sys/types.h>
 
 #include "heimann_drv.h"
-#include "sdl2_draw.h"
+// #include "sdl2_draw.h"
+#include "opencv_draw.h"
  
 mlx_characteristics_t DevConst = {
     .NumberOfPixel  = NUMBER_OF_PIXEL,
@@ -1573,8 +1574,8 @@ int sensor_main(int argc,char *argv[])
     // 设置 poll 结构体
     struct pollfd fds;
 
-    SDL_Window* win=NULL;
-    SDL_Renderer* renderer=NULL;
+    // SDL_Window* win=NULL;
+    // SDL_Renderer* renderer=NULL;
     
 
     if(argc!=3){
@@ -1615,10 +1616,11 @@ int sensor_main(int argc,char *argv[])
     fds.fd = timer_fd;
     fds.events = POLLIN;
 
-    if(sdl2_init(&win, &renderer) == -1){
-        printf("sdl2_init failed!\n");
-        exit(EXIT_FAILURE);
-    }
+    // if(sdl2_init(&win, &renderer) == -1){
+    //     printf("sdl2_init failed!\n");
+    //     exit(EXIT_FAILURE);
+    // }
+
 
 
     while(1)
@@ -1661,7 +1663,8 @@ int sensor_main(int argc,char *argv[])
             ft_point = (data_pixel[16][16] / 10.0) - 273.15;
             printf("data_pixel[16][16] = %.2f\n",ft_point);
 
-            sdl2_main(win, renderer, &data_pixel[0][0]);
+            // sdl2_main(win, renderer, &data_pixel[0][0]);
+            opencv_main(&data_pixel[0][0]);
         }
 
     }
@@ -1670,7 +1673,7 @@ int sensor_main(int argc,char *argv[])
     free(pixc2_0);
     pixc2_0 = NULL;
 
-    sdl2_free(win, renderer);
+    // sdl2_free(win, renderer);
 
     close(timer_fd);
     close(sensor_fd);

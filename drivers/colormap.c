@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "heimann_drv.h"
+#include "colormap.h"
 //保存了热力图的颜色表，格式为rgb565
 static uint16_t colormap[180];
 

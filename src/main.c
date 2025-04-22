@@ -12,8 +12,14 @@
 
 #include "heimann_drv.h"
 #include "mix415_drv.h"
+#include "opencv_test.h"
 
-// extern int sensor_main(int argc,char *argv[]);
+// int main() {
+//     opencv_test();  // 显示一个简单窗口
+//     return 0;
+// }
+
+
 
 int main(int argc, char *argv[]) {
     pid_t pid = fork();
@@ -26,8 +32,8 @@ int main(int argc, char *argv[]) {
     if (pid == 0) {
         // 子进程：执行 sensor_main
         printf("[Child] cam_main starting...\n");
-        // exit(sensor_main(argc, argv)); // 确保子进程退出时正确返回
-        exit(cam_main(argc, argv));
+        exit(sensor_main(argc, argv)); // 确保子进程退出时正确返回
+        // exit(cam_main(argc, argv));
     } else {
         // 父进程：可以执行别的逻辑，或者等待子进程
         printf("[Parent] cam_main forked, PID = %d\n", pid);

@@ -1,10 +1,18 @@
-#ifndef __SDL2_DRAW_H
-#define __SDL2_DRAW_H
+#ifndef __OPENCV_DRAW_H
+#define __OPENCV_DRAW_H
 
-#include <SDL2/SDL.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "heimann_inter.h"
+#include "heimann_drv.h"
+#include "colormap.h"
+
+// #include "sdl2_draw.h"
+
 
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 480
@@ -18,10 +26,11 @@
 #define OFFSET_X ((WINDOW_WIDTH - IMAGE_WIDTH) / 2)
 #define OFFSET_Y ((WINDOW_HEIGHT - IMAGE_HEIGHT) / 2)
 
+int opencv_main(uint16_t* data_pixel);
 
+#ifdef __cplusplus
+}
+#endif
 
-int sdl2_init(SDL_Window** win, SDL_Renderer** renderer);
-int sdl2_main(SDL_Window* win, SDL_Renderer* renderer, uint16_t* data_pixel);
-int sdl2_free(SDL_Window* win, SDL_Renderer* renderer);
 
 #endif
