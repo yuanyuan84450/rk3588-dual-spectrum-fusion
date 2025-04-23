@@ -12,6 +12,7 @@ extern "C" {
 #include "colormap.h"
 
 #include "mix415_drv.h"
+#include "thread.h"
 
 
 #define WINDOW_WIDTH 640
@@ -28,6 +29,7 @@ extern "C" {
 
 int cv_show_heimann_classic(const uint16_t* data_pixel);
 void draw_roi_frame(const uint8_t* y_plane);
+void* opencv_thread(void *arg);
 
 #ifdef __cplusplus
 }

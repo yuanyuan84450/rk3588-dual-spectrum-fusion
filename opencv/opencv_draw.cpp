@@ -56,3 +56,36 @@ void draw_roi_frame(const uint8_t* yuv_data) {
     cv::imshow("Visible ROI - Color", roi_bgr);
     cv::waitKey(1);
 }
+
+void* opencv_thread(void *arg){
+    thread_context_t* ctx = (thread_context_t*)arg;
+    // int argc = ctx->thread_args.argc;
+    // char **argv = ctx->thread_args.argv;
+    // printf("opencv_thread!!!\n");
+
+    while(1){
+
+        pthread_mutex_lock(&ctx->thermal_buf.mutex);
+        while (!ctx->thermal_buf.updated)
+            pthread_cond_wait(&ctx->thermal_buf.cond, &ctx->thermal_buf.mutex);
+        pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+        // printf("opencv_thread-thermal_buf\n");
+
+        pthread_mutex_lock(&ctx->yuv_buf.mutex);
+        while (!ctx->yuv_buf.updated)
+            pthread_cond_wait(&ctx->yuv_buf.cond, &ctx->yuv_buf.mutex);
+        pthread_mutex_unlock(&ctx->yuv_buf.mutex);
+        // printf("opencv_thread-yuv_buf\n");
+
+        pthread_mutex_lock(&ctx->fusion_buf.mutex);
+        // printf("opencv!!!\n");
+        draw_roi_frame(ctx->yuv_buf.yuv_data);
+        cv_show_heimann_classic(&ctx->thermal_buf.thermal_data[0][0]);
+        
+
+        pthread_mutex_unlock(&ctx->fusion_buf.mutex);
+    }
+
+    return NULL;
+
+}

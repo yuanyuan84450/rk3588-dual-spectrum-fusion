@@ -56,7 +56,8 @@ enum  {
 extern uint16_t T_max, T_min;// 温度
 extern uint32_t  T_avg; // 温度平均值
 // int sensor_init(int sensor_fd, int eeprom_fd);
-int sensor_main(int argc,char *argv[]);
+// int sensor_main(int argc,char *argv[]);
+void* thermal_thread(void *arg);
 
 
 

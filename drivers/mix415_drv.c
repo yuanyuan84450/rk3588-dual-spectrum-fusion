@@ -11,6 +11,7 @@
 
 #include "mix415_drv.h"
 #include "opencv_draw.h"
+#include "thread.h"
 
 struct buffer {
     void *start;
@@ -19,12 +20,17 @@ struct buffer {
 
 static struct buffer *buffers;
 
-int cam_main(int argc, char *argv[]) {
+void* camera_thread(void *arg) {
+
+    thread_context_t* ctx = (thread_context_t*)arg;
+    int argc = ctx->thread_args.argc;
+    char **argv = ctx->thread_args.argv;
+
     const char *device = (argc == 4) ? argv[3] : CAM_DEVICE;
     int fd = open(device, O_RDWR);
     if (fd == -1) {
-        perror("Opening video device");
-        return 1;
+        perror("Opening video device failed!");
+        return (void*)-1;
     }
 
     // 设置多平面图像格式
@@ -39,7 +45,7 @@ int cam_main(int argc, char *argv[]) {
     if (ioctl(fd, VIDIOC_S_FMT, &fmt) == -1) {
         perror("Setting Pixel Format");
         close(fd);
-        return 1;
+        return (void*)-1;
     }
 
     // 请求缓冲区
@@ -50,7 +56,7 @@ int cam_main(int argc, char *argv[]) {
     if (ioctl(fd, VIDIOC_REQBUFS, &req) == -1) {
         perror("Requesting Buffers");
         close(fd);
-        return 1;
+        return (void*)-1;
     }
 
     // mmap 映射缓冲区
@@ -71,7 +77,7 @@ int cam_main(int argc, char *argv[]) {
         if (ioctl(fd, VIDIOC_QUERYBUF, &buf) == -1) {
             perror("Querying Buffer");
             close(fd);
-            return 1;
+            return (void*)-1;
         }
 
         buffers[i].length = buf.m.planes[0].length;
@@ -97,7 +103,7 @@ int cam_main(int argc, char *argv[]) {
         if (ioctl(fd, VIDIOC_QBUF, &buf) == -1) {
             perror("Queue Buffer");
             close(fd);
-            return 1;
+            return (void*)-1;
         }
     }
 
@@ -106,7 +112,7 @@ int cam_main(int argc, char *argv[]) {
     if (ioctl(fd, VIDIOC_STREAMON, &type) == -1) {
         perror("Stream On");
         close(fd);
-        return 1;
+        return (void*)-1;
     }
 
     while (1) {
@@ -127,8 +133,19 @@ int cam_main(int argc, char *argv[]) {
         }
 
         // 提取 Y 分量（灰度图像）并访问 ROI
+
+        pthread_mutex_lock(&ctx->yuv_buf.mutex);
+
         uint8_t *y_plane = (uint8_t *)buffers[buf.index].start;
-        draw_roi_frame(y_plane);
+        // memset(ctx->yuv_buf.yuv_data, 128, sizeof(ctx->yuv_buf.yuv_data));
+        // memcpy(ctx->yuv_buf.yuv_data, y_plane, sizeof(ctx->yuv_buf.yuv_data));
+        ctx->yuv_buf.yuv_data = y_plane;
+        // draw_roi_frame(ctx->yuv_buf.yuv_data);
+
+        ctx->yuv_buf.updated = 1;
+        pthread_cond_signal(&ctx->yuv_buf.cond);
+        pthread_mutex_unlock(&ctx->yuv_buf.mutex);
+
         // for (int y = 0; y < ROI_H; y++) {
         //     uint8_t *line = y_plane + (ROI_Y + y) * MIX_WIDTH + ROI_X;
             
@@ -143,12 +160,13 @@ int cam_main(int argc, char *argv[]) {
 
         if (ioctl(fd, VIDIOC_QBUF, &buf) == -1) {
             perror("Requeue Buffer");
+            return (void*)-1;
         }
-        usleep(1);
+        usleep(1000);
     }
 
     // 停止采集
     ioctl(fd, VIDIOC_STREAMOFF, &type);
     close(fd);
-    return 0;
+    return NULL;
 }
