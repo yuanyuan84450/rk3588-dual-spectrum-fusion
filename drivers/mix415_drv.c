@@ -8,10 +8,16 @@
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
 #include <sys/mman.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include "mix415_drv.h"
 #include "opencv_draw.h"
 #include "thread.h"
+
+#define TARGET_FPS 30
+#define MAX_DEQUEUE_FAIL 10
+#define BUFFER_COUNT 8 // 调大缓冲区数量，避免丢帧
 
 struct buffer {
     void *start;
@@ -21,19 +27,17 @@ struct buffer {
 static struct buffer *buffers;
 
 void* camera_thread(void *arg) {
-
     thread_context_t* ctx = (thread_context_t*)arg;
     int argc = ctx->thread_args.argc;
     char **argv = ctx->thread_args.argv;
 
     const char *device = (argc == 4) ? argv[3] : CAM_DEVICE;
-    int fd = open(device, O_RDWR);
+    int fd = open(device, O_RDWR | O_NONBLOCK);
     if (fd == -1) {
         perror("Opening video device failed!");
         return (void*)-1;
     }
 
-    // 设置多平面图像格式
     struct v4l2_format fmt;
     memset(&fmt, 0, sizeof(fmt));
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
@@ -48,9 +52,8 @@ void* camera_thread(void *arg) {
         return (void*)-1;
     }
 
-    // 请求缓冲区
     struct v4l2_requestbuffers req = {0};
-    req.count = 4;
+    req.count = BUFFER_COUNT;
     req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
     req.memory = V4L2_MEMORY_MMAP;
     if (ioctl(fd, VIDIOC_REQBUFS, &req) == -1) {
@@ -59,12 +62,10 @@ void* camera_thread(void *arg) {
         return (void*)-1;
     }
 
-    // mmap 映射缓冲区
     buffers = calloc(req.count, sizeof(*buffers));
     for (int i = 0; i < req.count; i++) {
         struct v4l2_buffer buf;
         struct v4l2_plane planes[VIDEO_MAX_PLANES];
-
         memset(&buf, 0, sizeof(buf));
         memset(planes, 0, sizeof(planes));
 
@@ -86,11 +87,9 @@ void* camera_thread(void *arg) {
                                 fd, buf.m.planes[0].m.mem_offset);
     }
 
-    // 入队缓冲区
     for (int i = 0; i < req.count; i++) {
         struct v4l2_buffer buf;
         struct v4l2_plane planes[VIDEO_MAX_PLANES];
-
         memset(&buf, 0, sizeof(buf));
         memset(planes, 0, sizeof(planes));
 
@@ -107,7 +106,6 @@ void* camera_thread(void *arg) {
         }
     }
 
-    // 启动采集
     enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
     if (ioctl(fd, VIDIOC_STREAMON, &type) == -1) {
         perror("Stream On");
@@ -115,10 +113,34 @@ void* camera_thread(void *arg) {
         return (void*)-1;
     }
 
+    int dequeue_fail_count = 0;
+
+    size_t frame_size = MIX_WIDTH * MIX_HEIGHT * 3 / 2; // NV12大小
+    uint8_t *local_frame_buffer = malloc(frame_size); // 本地拷贝缓冲区
+
     while (1) {
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(fd, &fds);
+
+        struct timeval tv;
+        tv.tv_sec = 2;
+        tv.tv_usec = 0;
+
+        int r = select(fd + 1, &fds, NULL, NULL, &tv);
+        if (r == -1) {
+            if (errno == EINTR)
+                continue;
+            perror("Select failed");
+            break;
+        }
+        else if (r == 0) {
+            fprintf(stderr, "Camera select timeout!\n");
+            continue;
+        }
+
         struct v4l2_buffer buf;
         struct v4l2_plane planes[VIDEO_MAX_PLANES];
-
         memset(&buf, 0, sizeof(buf));
         memset(planes, 0, sizeof(planes));
 
@@ -128,44 +150,31 @@ void* camera_thread(void *arg) {
         buf.m.planes = planes;
 
         if (ioctl(fd, VIDIOC_DQBUF, &buf) == -1) {
-            perror("Dequeue Buffer");
+            perror("Dequeue Buffer failed");
+            if (++dequeue_fail_count > MAX_DEQUEUE_FAIL) {
+                fprintf(stderr, "Dequeue failed too many times, exiting...\n");
+                break;
+            }
             continue;
         }
-
-        // 提取 Y 分量（灰度图像）并访问 ROI
+        dequeue_fail_count = 0;
 
         pthread_mutex_lock(&ctx->yuv_buf.mutex);
 
-        uint8_t *y_plane = (uint8_t *)buffers[buf.index].start;
-        // memset(ctx->yuv_buf.yuv_data, 128, sizeof(ctx->yuv_buf.yuv_data));
-        // memcpy(ctx->yuv_buf.yuv_data, y_plane, sizeof(ctx->yuv_buf.yuv_data));
-        ctx->yuv_buf.yuv_data = y_plane;
-        // draw_roi_frame(ctx->yuv_buf.yuv_data);
-
+        memcpy(local_frame_buffer, buffers[buf.index].start, frame_size); // 拷贝一份，避免撕裂
+        ctx->yuv_buf.yuv_data = local_frame_buffer; 
         ctx->yuv_buf.updated = 1;
+
         pthread_cond_signal(&ctx->yuv_buf.cond);
         pthread_mutex_unlock(&ctx->yuv_buf.mutex);
 
-        // for (int y = 0; y < ROI_H; y++) {
-        //     uint8_t *line = y_plane + (ROI_Y + y) * MIX_WIDTH + ROI_X;
-            
-            // // 这里可处理 line 中的 ROI_W 宽度数据，比如融合热成像
-            // for(int x=0; x<ROI_W; x++){
-            //     uint8_t gray = line[x];
-            //     if(x==ROI_W/2 && y ==ROI_H/2)
-            //         printf("x[ROI_H/2][ROI_W/2]=%d\n",gray);
-            // }
-
-        // }
-
         if (ioctl(fd, VIDIOC_QBUF, &buf) == -1) {
-            perror("Requeue Buffer");
-            return (void*)-1;
+            perror("Requeue Buffer failed");
+            break;
         }
-        usleep(1000);
     }
 
-    // 停止采集
+    free(local_frame_buffer);
     ioctl(fd, VIDIOC_STREAMOFF, &type);
     close(fd);
     return NULL;

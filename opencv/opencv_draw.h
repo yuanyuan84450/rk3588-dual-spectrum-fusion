@@ -15,8 +15,8 @@ extern "C" {
 #include "thread.h"
 
 
-#define WINDOW_WIDTH 640
-#define WINDOW_HEIGHT 480
+#define WINDOW_WIDTH 1024
+#define WINDOW_HEIGHT 600
 #define THERMAL_COLS 32
 #define THERMAL_ROWS 30
 #define BLOCK_SIZE 2
