@@ -16,7 +16,7 @@ extern "C" {
 
 
 #define WINDOW_WIDTH 1024
-#define WINDOW_HEIGHT 600
+#define WINDOW_HEIGHT 640
 #define THERMAL_COLS 32
 #define THERMAL_ROWS 30
 #define BLOCK_SIZE 2

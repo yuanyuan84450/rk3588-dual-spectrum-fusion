@@ -7,8 +7,8 @@
 
 #define TH_THERMAL_ROWS 32
 #define TH_THERMAL_COLS 32
-#define TH_MIX_WIDTH 480
-#define TH_MIX_HEIGHT 480
+#define TH_MIX_WIDTH 640
+#define TH_MIX_HEIGHT 360
 #define TH_YUV_FRAME_SIZE (TH_MIX_WIDTH * TH_MIX_HEIGHT *3/2)
 
 typedef struct {
@@ -26,7 +26,7 @@ typedef struct {
 } yuv_buffer_t;
 
 typedef struct {
-    uint16_t fusion_data[TH_THERMAL_ROWS][TH_THERMAL_COLS];
+    uint16_t fusion_data[256][256];
     pthread_mutex_t mutex;
     pthread_cond_t cond;
     int updated;
@@ -43,6 +43,7 @@ typedef struct {
     thermal_buffer_t thermal_buf;
     yuv_buffer_t yuv_buf;
     fusion_buffer_t fusion_buf;
+    volatile int snapshot_request;
 } thread_context_t;
 
 
