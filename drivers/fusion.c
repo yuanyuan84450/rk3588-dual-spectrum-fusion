@@ -1,5 +1,5 @@
 #include "fusion.h"
-#include "thread.h"
+#include "public_cfg.h"
 
 
 

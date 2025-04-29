@@ -13,7 +13,7 @@
 
 #include "heimann_drv.h"
 #include "mix415_drv.h"
-#include "thread.h"
+#include "public_cfg.h"
 #include "opencv_draw.h"
 
 void* cmd_thread(void *arg) {

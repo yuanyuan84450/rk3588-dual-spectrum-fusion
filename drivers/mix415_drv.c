@@ -13,7 +13,7 @@
 
 #include "mix415_drv.h"
 #include "opencv_draw.h"
-#include "thread.h"
+#include "public_cfg.h"
 
 #define TARGET_FPS 30
 #define MAX_DEQUEUE_FAIL 10

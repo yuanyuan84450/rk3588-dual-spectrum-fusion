@@ -8,7 +8,7 @@
 
 #include "heimann_drv.h"
 #include "opencv_draw.h"
-#include "thread.h"
+#include "public_cfg.h"
 
 mlx_characteristics_t DevConst = {
     .NumberOfPixel = NUMBER_OF_PIXEL,
@@ -120,63 +120,6 @@ uint8_t prob_status = PROB_CONNECTING; // 探头当前状态
 bool prob_lock = true;
 uint16_t T_max, T_min; // 温度
 uint32_t T_avg;        // 温度平均值
-
-// //use i2c_fd to wirte reg
-// static int i2c_write(int fd, uint8_t addr, uint8_t reg, uint8_t val)
-// {
-//     // int retries;
-//     uint8_t data[2];
-
-//     data[0] = reg;
-//     data[1] = val;
-
-//     //设置地址长度：0为7位地址
-//     ioctl(fd,I2C_TENBIT,0);
-
-//     //设置从机地址
-//     if (ioctl(fd,I2C_SLAVE,addr) < 0){
-//         printf("fail to set i2c device slave address!\n");
-//         close(fd);
-//         return -1;
-//     }
-
-//     //设置收不到ACK时的重试次数
-//     ioctl(fd,I2C_RETRIES,5);
-
-//     if (write(fd, data, 2) == 2){
-//         return 0;
-//     }
-//     else{
-//         return -1;
-//     }
-// }
-
-// static int i2c_read(int fd, uint8_t addr,uint8_t reg,uint8_t * val)
-// {
-//     // int retries;
-
-//     //设置地址长度：0为7位地址
-//     ioctl(fd,I2C_TENBIT,0);
-
-//     //设置从机地址
-//     if (ioctl(fd,I2C_SLAVE,addr) < 0){
-//         printf("fail to set i2c device slave address!\n");
-//         close(fd);
-//         return -1;
-//     }
-
-//     //设置收不到ACK时的重试次数
-//     ioctl(fd,I2C_RETRIES,5);
-
-//     if (write(fd, &reg, 1) == 1){
-//         if (read(fd, val, 1) == 1){
-//                 return 0;
-//         }
-//     }
-//     else{
-//         return -1;
-//     }
-// }
 
 /********************************************************************
    Function:        void read_EEPROM_byte(unsigned int eeaddress )
@@ -304,50 +247,6 @@ int write_sensor_byte(int fd, uint8_t reg, uint8_t val)
    Function:        void read_sensor_register( uint16_t addr, uint8_t *dest, uint16_t n)
    Description:     read sensor register
  *******************************************************************/
-// int read_sensor_register(int fd, uint8_t reg, uint8_t *dest, uint16_t n)
-// {
-//     // int retries;
-
-//     //设置地址长度：0为7位地址
-//     ioctl(fd,I2C_TENBIT,0);
-
-//     //设置从机地址
-//     if (ioctl(fd,I2C_SLAVE,SENSOR_ADDRESS) < 0){
-//         printf("fail to set i2c device slave address!\n");
-//         close(fd);
-//         return -1;
-//     }
-
-//     //设置收不到ACK时的重试次数
-//     ioctl(fd,I2C_RETRIES,5);
-
-//     // // 写入起始寄存器地址
-//     // if (write(fd, &reg, 1) != 1) {
-//     //     printf("Failed to write sensor register address");
-//     //     return -1;
-//     // }
-
-//     // // 连续读取 n 字节数据
-//     // // ssize_t read_ret = read(fd, dest, n);
-//     // if (read(fd, dest, n) != (ssize_t)n) {
-//     //     perror("read failed");
-//     //     printf("Need %d bytes, but got wrong bytes\n", n);
-//     //     return -1;
-//     // }
-
-//     if (write(fd, &reg, 1) == 2){
-//         if (read(fd, dest, n) == (ssize_t)n){
-//                 return 0;
-//         }
-//     }else{
-//         perror("read failed");
-//         printf("Need %d bytes, but got wrong bytes\n", n);
-//         return -1;
-//     }
-
-//     return 0; // 成功
-// }
-
 int read_sensor_register(int fd, uint8_t reg, uint8_t *dest, uint16_t n)
 {
   struct i2c_rdwr_ioctl_data ioctl_data;
@@ -529,25 +428,18 @@ void write_calibration_settings_to_sensor(int fd)
 {
 
   write_sensor_byte(fd, TRIM_REGISTER1, mbit_calib);
-  // delay(5);
   usleep(5000);
   write_sensor_byte(fd, TRIM_REGISTER2, bias_calib);
-  // delay(5);
   usleep(5000);
   write_sensor_byte(fd, TRIM_REGISTER3, bias_calib);
-  // delay(5);
   usleep(5000);
   write_sensor_byte(fd, TRIM_REGISTER4, clk_calib);
-  // delay(5);
   usleep(5000);
   write_sensor_byte(fd, TRIM_REGISTER5, bpa_calib);
-  // delay(5);
   usleep(5000);
   write_sensor_byte(fd, TRIM_REGISTER6, bpa_calib);
-  // delay(5);
   usleep(5000);
   write_sensor_byte(fd, TRIM_REGISTER7, pu_calib);
-  // delay(5);
   usleep(5000);
 }
 
@@ -1130,147 +1022,147 @@ void readblockinterrupt(int sensor_fd, int timer_fd, uint32_t interval_us)
   ReadingRoutineEnable = 1;
 }
 
-// /********************************************************************
-//  ********************************************************************
-//     - - - PART 4: SERIAL FUNCTIONS - - -
-//   checkSerial()
-//   print_eeprom_header()
-//   print_eeprom_hex()
-//   print_menu()
-//  ********************************************************************
-//  ********************************************************************/
-// /********************************************************************
-//    Function:        print_eeprom_header()
-//    Description:
-//  *******************************************************************/
-// void print_eeprom_header() {
-//     Serial.print("data\t\tregister\ttype\t\tvalue\n");
-//     Serial.println("------------------------------------------------------------");
-//     Serial.print("PixCmin\t\t0x00-0x03\tfloat\t\t");
-//     Serial.println(pixcmin, 0);
-//     Serial.print("PixCmax\t\t0x04-0x07\tfloat\t\t");
-//     Serial.println(pixcmax, 0);
-//     Serial.print("gradScale\t0x08\t\tunsigned char\t");
-//     Serial.println(gradscale);
-//     Serial.print("TN\t\t0x0B-0x0C\tunsigned short\t");
-//     Serial.println(tablenumber);
-//     Serial.print("epsilon\t\t0x0D\t\tunsigned char\t");
-//     Serial.println(epsilon);
-//     Serial.print("MBIT(calib)\t0x1A\t\tunsigned char\t");
-//     Serial.println(mbit_calib);
-//     Serial.print("BIAS(calib)\t0x1B\t\tunsigned char\t");
-//     Serial.println(bias_calib);
-//     Serial.print("CLK(calib)\t0x1C\t\tunsigned char\t");
-//     Serial.println(clk_calib);
-//     Serial.print("BPA(calib)\t0x1D\t\tunsigned char\t");
-//     Serial.println(bpa_calib);
-//     Serial.print("PU(calib)\t0x1E\t\tunsigned char\t");
-//     Serial.println(pu_calib);
-//     Serial.print("Arraytype\t0x22\t\tunsigned char\t");
-//     Serial.println(arraytype);
-//     Serial.print("VDDTH1\t\t0x26-0x27\tunsigned short\t");
-//     Serial.println(vddth1);
-//     Serial.print("VDDTH2\t\t0x28-0x29\tunsigned short\t");
-//     Serial.println(vddth2);
-//     Serial.print("PTAT-gradient\t0x34-0x37\tfloat\t\t");
-//     Serial.println(ptatgr_float, 4);
-//     Serial.print("PTAT-offset\t0x38-0x3B\tfloat\t\t");
-//     Serial.println(ptatoff_float, 4);
-//     Serial.print("PTAT(Th1)\t0x3C-0x3D\tunsigned short\t");
-//     Serial.println(ptatth1);
-//     Serial.print("PTAT(Th2)\t0x3E-0x3F\tunsigned short\t");
-//     Serial.println(ptatth2);
-//     Serial.print("VddScGrad\t0x4E\t\tunsigned char\t");
-//     Serial.println(vddscgrad);
-//     Serial.print("VddScOff\t0x4F\t\tunsigned char\t");
-//     Serial.println(vddscoff);
-//     Serial.print("GlobalOff\t0x54\t\tsigned char\t");
-//     Serial.println(globaloff);
-//     Serial.print("GlobalGain\t0x55-0x56\tunsigned short\t");
-//     Serial.println(globalgain);
-//     Serial.print("SensorID\t0x74-0x77\tunsigned long\t");
-//     Serial.println(id);
-//   }
+/********************************************************************
+ ********************************************************************
+    - - - PART 4: SERIAL FUNCTIONS - - -
+  checkSerial()
+  print_eeprom_header()
+  print_eeprom_hex()
+  print_menu()
+ ********************************************************************
+ ********************************************************************/
+/********************************************************************
+   Function:        print_eeprom_header()
+   Description:
+ *******************************************************************/
+void print_eeprom_header() {
+    printf("data\t\tregister\ttype\t\tvalue\n");
+    printf("------------------------------------------------------------\n");
+    printf("PixCmin\t\t0x00-0x03\tfloat\t\t");
+    printf("%.1f\n", pixcmin);
+    printf("PixCmax\t\t0x04-0x07\tfloat\t\t");
+    printf("%.1f\n", pixcmax);
+    printf("gradScale\t0x08\t\tunsigned char\t");
+    printf("%d\n", gradscale);
+    printf("TN\t\t0x0B-0x0C\tunsigned short\t");
+    printf("%d\n", tablenumber);
+    printf("epsilon\t\t0x0D\t\tunsigned char\t");
+    printf("%d\n", epsilon);
+    printf("MBIT(calib)\t0x1A\t\tunsigned char\t");
+    printf("%d\n", mbit_calib);
+    printf("BIAS(calib)\t0x1B\t\tunsigned char\t");
+    printf("%d\n", bias_calib);
+    printf("CLK(calib)\t0x1C\t\tunsigned char\t");
+    printf("%d\n", clk_calib);
+    printf("BPA(calib)\t0x1D\t\tunsigned char\t");
+    printf("%d\n", bpa_calib);
+    printf("PU(calib)\t0x1E\t\tunsigned char\t");
+    printf("%d\n", pu_calib);
+    printf("Arraytype\t0x22\t\tunsigned char\t");
+    printf("%d\n", arraytype);
+    printf("VDDTH1\t\t0x26-0x27\tunsigned short\t");
+    printf("%d\n", vddth1);
+    printf("VDDTH2\t\t0x28-0x29\tunsigned short\t");
+    printf("%d\n", vddth2);
+    printf("PTAT-gradient\t0x34-0x37\tfloat\t\t");
+    printf("%.4f\n", ptatgr_float);
+    printf("PTAT-offset\t0x38-0x3B\tfloat\t\t");
+    printf("%.4f\n", ptatoff_float);
+    printf("PTAT(Th1)\t0x3C-0x3D\tunsigned short\t");
+    printf("%d\n", ptatth1);
+    printf("PTAT(Th2)\t0x3E-0x3F\tunsigned short\t");
+    printf("%d\n", ptatth2);
+    printf("VddScGrad\t0x4E\t\tunsigned char\t");
+    printf("%d\n", vddscgrad);
+    printf("VddScOff\t0x4F\t\tunsigned char\t");
+    printf("%d\n", vddscoff);
+    printf("GlobalOff\t0x54\t\tsigned char\t");
+    printf("%d\n", globaloff);
+    printf("GlobalGain\t0x55-0x56\tunsigned short\t");
+    printf("%d\n", globalgain);
+    printf("SensorID\t0x74-0x77\tunsigned long\t");
+    printf("%d\n", id);
+  }
 
-//   /********************************************************************
-//      Function:        print_eeprom_hex()
-//      Description:     print eeprom contint as hex values
-//    *******************************************************************/
-//   void print_eeprom_hex() {
+  /********************************************************************
+     Function:        print_eeprom_hex()
+     Description:     print eeprom contint as hex values
+   *******************************************************************/
+  void print_eeprom_hex(int fd) {
 
-//     Serial.print("\n\n\n---PRINT EEPROM (HEX)---\n");
-//     Serial.print("\n\n\t\t\t0x00\t0x01\t0x02\t0x03\t0x04\t0x05\t0x06\t0x07\t0x08\t0x09\t0x0A\t0x0B\t0x0C\t0x0D\t0x0E\t0x0F\n");
+    printf("\n\n\n---PRINT EEPROM (HEX)---\n");
+    printf("\n\n\t\t\t0x00\t0x01\t0x02\t0x03\t0x04\t0x05\t0x06\t0x07\t0x08\t0x09\t0x0A\t0x0B\t0x0C\t0x0D\t0x0E\t0x0F\n");
 
-//     // line
-//     for (int i = 0; i < 75; i++) {
-//       Serial.print("- ");
-//     }
+    // line
+    for (int i = 0; i < 75; i++) {
+      printf("- ");
+    }
 
-//     for (int i = 0; i < EEPROM_SIZE; i++) {
+    for (int i = 0; i < EEPROM_SIZE; i++) {
 
-//       if (i % 16 == 0) {
-//         Serial.print("\n");
+      if (i % 16 == 0) {
+        printf("\n");
 
-//         if (i < E_DEADPIXADR) {
-//           Serial.print("HEADER\t0x");
-//           Serial.print(i, HEX);
-//           Serial.print("\t|\t");
-//         }
-//         else if (i < 0x00D0) {
-//           Serial.print("DEADPIX\t0x");
-//           Serial.print(i, HEX);
-//           Serial.print("\t|\t");
-//         }
-//         else if (i < E_VDDCOMPGRAD) {
-//           Serial.print("FREE\t0x");
-//           Serial.print(i, HEX);
-//           Serial.print("\t|\t");
-//         }
-//         else if (i < E_VDDCOMPOFF) {
-//           Serial.print("VDDGRAD\t0x");
-//           Serial.print(i, HEX);
-//           Serial.print("\t|\t");
-//         }
-//         else if (i < E_THGRAD) {
-//           Serial.print("VDDOFF\t0x");
-//           Serial.print(i, HEX);
-//           Serial.print("\t|\t");
-//         }
-//         else if (i < E_THOFFSET) {
-//           Serial.print("THGRAD\t0x");
-//           Serial.print(i, HEX);
-//           Serial.print("\t|\t");
-//         }
-//         else if (i < E_PIJ) {
-//           Serial.print("THOFF\t0x");
-//           Serial.print(i, HEX);
-//           Serial.print("\t|\t");
-//         }
-//         else if (i < (E_PIJ + 2*NUMBER_OF_PIXEL)) {
-//           Serial.print("PIXC\t0x");
-//           Serial.print(i, HEX);
-//           Serial.print("\t|\t");
-//         }
-//         else {
-//           Serial.print("FREE\t0x");
-//           Serial.print(i, HEX);
-//           Serial.print("\t|\t");
-//         }
-//       }
-//       else {
-//         Serial.print("\t");
-//       }
+        if (i < E_DEADPIXADR) {
+          printf("HEADER\t0x");
+          printf("%X", i);
+          printf("\t|\t");
+        }
+        else if (i < 0x00D0) {
+          printf("DEADPIX\t0x");
+          printf("%X", i);
+          printf("\t|\t");
+        }
+        else if (i < E_VDDCOMPGRAD) {
+          printf("FREE\t0x");
+          printf("%X", i);
+          printf("\t|\t");
+        }
+        else if (i < E_VDDCOMPOFF) {
+          printf("VDDGRAD\t0x");
+          printf("%X", i);
+          printf("\t|\t");
+        }
+        else if (i < E_THGRAD) {
+          printf("VDDOFF\t0x");
+          printf("%X", i);
+          printf("\t|\t");
+        }
+        else if (i < E_THOFFSET) {
+          printf("THGRAD\t0x");
+          printf("%X", i);
+          printf("\t|\t");
+        }
+        else if (i < E_PIJ) {
+          printf("THOFF\t0x");
+          printf("%X", i);
+          printf("\t|\t");
+        }
+        else if (i < (E_PIJ + 2*NUMBER_OF_PIXEL)) {
+          printf("PIXC\t0x");
+          printf("%X", i);
+          printf("\t|\t");
+        }
+        else {
+          printf("FREE\t0x");
+          printf("%X", i);
+          printf("\t|\t");
+        }
+      }
+      else {
+        printf("\t");
+      }
 
-//       Serial.print("0x");
-//       if (read_EEPROM_byte(i) < 0x10) {
-//         Serial.print("0");
-//       }
-//       Serial.print(read_EEPROM_byte(i), HEX);
+      printf("0x");
+      if (read_EEPROM_byte(fd, i) < 0x10) {
+        printf("0");
+      }
+      printf("%X", read_EEPROM_byte(fd, i));
 
-//     }
+    }
 
-//     Serial.print("\n\n\n\ndone (m... back to menu)\n\n\n");
-//   }
+    printf("\n\n\n\ndone (m... back to menu)\n\n\n");
+  }
 
 //   /********************************************************************
 //      Function:      print_menu()
@@ -1537,143 +1429,140 @@ void readblockinterrupt(int sensor_fd, int timer_fd, uint32_t interval_us)
 
 int connect_sensor(int fd)
 {
-  int error;
-  while (1)
-  {
-    printf("Trying to connect to HTPAd at address: %d\n", SENSOR_ADDRESS);
-    // 设置从机地址，此时为SENSOR，1MHz
-    if (ioctl(fd, I2C_SLAVE, SENSOR_ADDRESS) < 0)
-    {
-      perror("Failed to set slave address");
-      return -1;
-    }
+	int error;
+	while (1)
+	{
+		printf("Trying to connect to HTPAd at address: %d\n", SENSOR_ADDRESS);
+		// 设置从机地址，此时为SENSOR，1MHz
+		if (ioctl(fd, I2C_SLAVE, SENSOR_ADDRESS) < 0)
+		{
+			perror("Failed to set slave address");
+			return -1;
+		}
 
-    // 简单尝试：发送一个空传输，看是否 ACK（等价于 Wire.beginTransmission + endTransmission）
-    uint8_t dummy = 0x00;
-    error = write(fd, &dummy, 0); // 写 0 字节，探测地址
-    if (error >= 0)
-    {
-      printf("Sensor is ready!\n");
-      break;
-    }
+		// 简单尝试：发送一个空传输，看是否 ACK（等价于 Wire.beginTransmission + endTransmission）
+		uint8_t dummy = 0x00;
+		error = write(fd, &dummy, 0); // 写 0 字节，探测地址
+		if (error >= 0)
+		{
+			printf("Sensor is ready!\n");
+			break;
+		}
 
-    printf("Sensor not ready, retrying..., error code: %d\n", error);
-    sleep(2);
-  }
-  return 0;
+		printf("Sensor not ready, retrying..., error code: %d\n", error);
+		sleep(2);
+	}
+	return 0;
 }
 
 int sensor_init(int sensor_fd, int eeprom_fd)
 {
-  pixc2_0 = (uint32_t *)malloc(NUMBER_OF_PIXEL * 4);
-  if (pixc2_0 == NULL)
-  {
-    printf("heap_caps_malloc failed\n");
-  }
-  else
-  {
-    printf("heap_caps_malloc succeeded\n");
-    pixc2 = pixc2_0; // set pointer to start address of the allocated heap
-  }
+	pixc2_0 = (uint32_t *)malloc(NUMBER_OF_PIXEL * 4);
+	if (pixc2_0 == NULL)
+	{
+		printf("heap_caps_malloc failed\n");
+	}
+	else
+	{
+		printf("heap_caps_malloc succeeded\n");
+		pixc2 = pixc2_0; // set pointer to start address of the allocated heap
+	}
 
-  //*******************************************************************
-  // searching for sensor; if connected: read the whole EEPROM
-  //*******************************************************************
-  connect_sensor(sensor_fd);
+	//*******************************************************************
+	// searching for sensor; if connected: read the whole EEPROM
+	//*******************************************************************
+	connect_sensor(sensor_fd);
 
-  prob_status = PROB_INITIALIZING; // 探头连接状态
+	prob_status = PROB_INITIALIZING; // 探头连接状态
 
-  read_eeprom(eeprom_fd);
+	read_eeprom(eeprom_fd);
 
-  //*******************************************************************
-  // wake up and start the sensor
-  //*******************************************************************
-  // to wake up sensor set configuration register to 0x01
-  // |    RFU    |   Block   | Start | VDD_MEAS | BLIND | WAKEUP |
-  // |  0  |  0  |  0  |  0  |   0   |    0     |   0   |    1   |
-  write_sensor_byte(sensor_fd, CONFIGURATION_REGISTER, 0x01);
-  // write the calibration settings into the trim registers
-  write_calibration_settings_to_sensor(sensor_fd);
-  // to start sensor set configuration register to 0x09
-  // |    RFU    |   Block   | Start | VDD_MEAS | BLIND | WAKEUP |
-  // |  0  |  0  |  0  |  0  |   1   |    0     |   0   |    1   |
-  write_sensor_byte(sensor_fd, CONFIGURATION_REGISTER, 0x09);
-  printf("HTPAd is ready\n");
-  prob_status = PROB_PREPARING;
+	//*******************************************************************
+	// wake up and start the sensor
+	//*******************************************************************
+	// to wake up sensor set configuration register to 0x01
+	// |    RFU    |   Block   | Start | VDD_MEAS | BLIND | WAKEUP |
+	// |  0  |  0  |  0  |  0  |   0   |    0     |   0   |    1   |
+	write_sensor_byte(sensor_fd, CONFIGURATION_REGISTER, 0x01);
+	// write the calibration settings into the trim registers
+	write_calibration_settings_to_sensor(sensor_fd);
+	// to start sensor set configuration register to 0x09
+	// |    RFU    |   Block   | Start | VDD_MEAS | BLIND | WAKEUP |
+	// |  0  |  0  |  0  |  0  |   1   |    0     |   0   |    1   |
+	write_sensor_byte(sensor_fd, CONFIGURATION_REGISTER, 0x09);
+	printf("HTPAd is ready\n");
+	prob_status = PROB_PREPARING;
 
-  //*******************************************************************
-  // do bigger calculation here before you jump into the loop() function
-  //*******************************************************************
-  gradscale_div = pow(2, gradscale);
-  vddscgrad_div = pow(2, vddscgrad);
-  vddscoff_div = pow(2, vddscoff);
-  calcPixC(); // calculate the pixel constants
+	//*******************************************************************
+	// do bigger calculation here before you jump into the loop() function
+	//*******************************************************************
+	gradscale_div = pow(2, gradscale);
+	vddscgrad_div = pow(2, vddscgrad);
+	vddscoff_div = pow(2, vddscoff);
+	calcPixC(); // calculate the pixel constants
 
-  return 0;
+	return 0;
 }
 
 // 更新传感器画面
 void* thermal_thread(void *arg)
 {
-  thread_context_t* ctx = (thread_context_t*)arg;
-  int argc = ctx->thread_args.argc;
-  char **argv = ctx->thread_args.argv;
+	thread_context_t* ctx = (thread_context_t*)arg;
+	int argc = ctx->thread_args.argc;
+	char **argv = ctx->thread_args.argv;
 
-  int sensor_fd, eeprom_fd;
-  int timer_fd;
-  int ret;
+	int sensor_fd, eeprom_fd;
+	int timer_fd;
+	int ret;
 
-  // 设置 poll 结构体
-  struct pollfd fds;
+	// 设置 poll 结构体
+	struct pollfd fds;
 
-  if (argc < 3)
-  {
-    printf("Wrong use !!!!\n");
-    printf("Usage: %s [sensor-i2c6] [eeprom-i2c5]\n", argv[0]);
-    return (void*)-1;
-  }
+	if (argc < 3)
+	{
+		printf("Wrong use !\n");
+		printf("Usage: %s [sensor-i2c6] [eeprom-i2c5]\n", argv[0]);
+		return (void*)-1;
+	}
 
-  sensor_fd = open(argv[1], O_RDWR); // open file and enable read and  write
-  eeprom_fd = open(argv[2], O_RDWR);
-  if (sensor_fd < 0)
-  {
-    printf("Can't open sensor_fd %s\n", argv[1]); // open i2c dev file fail
-    perror("open sensor_fd failed\n");
-    return (void*)-1;
-  }
-  else
-  {
-    printf("sensor_fd: %s open successfully\n", argv[1]);
-  }
-  if (eeprom_fd < 0)
-  {
-    printf("Can't open eeprom_fd %s \n", argv[2]); // open i2c dev file fail
-    perror("open eeprom_fd failed\n");
-    return (void*)-1;
-  }
-  else
-  {
-    printf("eeprom_fd: %s open successfully\n", argv[2]);
-  }
+	sensor_fd = open(argv[1], O_RDWR); // open file and enable read and  write
+	eeprom_fd = open(argv[2], O_RDWR);
+	if (sensor_fd < 0)
+	{
+		printf("Can't open sensor_fd %s\n", argv[1]); // open i2c dev file fail
+		perror("open sensor_fd failed\n");
+		return (void*)-1;
+	}else{
+		printf("sensor_fd: %s open successfully\n", argv[1]);
+	}
 
-  sensor_init(sensor_fd, eeprom_fd);
+	if (eeprom_fd < 0)
+	{
+		printf("Can't open eeprom_fd %s \n", argv[2]); // open i2c dev file fail
+		perror("open eeprom_fd failed\n");
+		return (void*)-1;
+	}else{
+		printf("eeprom_fd: %s open successfully\n", argv[2]);
+	}
 
-  timert = calc_timert(clk_calib, mbit_calib);
-  printf("calc_timert: timert=%d\n", timert);
-  timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
-  if (timer_fd == -1)
-  {
-    perror("timerfd_create failed");
-    return (void*)-1;
-  }
-  set_timer(timer_fd, timert);
-  printf("Timer started. Waiting for events...\n");
+	sensor_init(sensor_fd, eeprom_fd);
 
-  fds.fd = timer_fd;
-  fds.events = POLLIN;
+	timert = calc_timert(clk_calib, mbit_calib);
+	printf("calc_timert: timert=%d\n", timert);
+	timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
+	if (timer_fd == -1)
+	{
+		perror("timerfd_create failed");
+		return (void*)-1;
+	}
+	set_timer(timer_fd, timert);
+	printf("Timer started. Waiting for events...\n");
 
-  while (1)
-  {
+	fds.fd = timer_fd;
+	fds.events = POLLIN;
+
+	while (1)
+	{
     ret = poll(&fds, 1, -1); // 阻塞直到定时器事件发生
     if (ret > 0)
     {
@@ -1691,49 +1580,42 @@ void* thermal_thread(void *arg)
       }
     }
 
-    // 主循环检查标志位并读取数据
-    NewDataAvailable = true; // 用于首次读取
-    if (NewDataAvailable)
-    {
-      // 在这里放读取传感器数据的代码
-      readblockinterrupt(sensor_fd, timer_fd, timert);
-      NewDataAvailable = 0;
-      // printf("readblockinterrupt\n");
-      usleep(1000);
-    }
+		// 主循环检查标志位并读取数据
+		NewDataAvailable = true; // 用于首次读取
+		if (NewDataAvailable)
+		{
+			// 在这里放读取传感器数据的代码
+			readblockinterrupt(sensor_fd, timer_fd, timert);
+			NewDataAvailable = 0;
+			// printf("readblockinterrupt\n");
+			usleep(1000);
+		}
 
-    if (state)
-    { // state is 1 when all raw sensor voltages are read for this picture
-      // while (pix_cp_lock == true) {delay(2);}
-      // prob_lock = true;
-      pthread_mutex_lock(&ctx->thermal_buf.mutex); //上锁，处理数据
+		if (state)
+		{ // state is 1 when all raw sensor voltages are read for this picture
+			pthread_mutex_lock(&ctx->thermal_buf.mutex); //上锁，处理数据
 
-      sort_data();
-      state = 0;
-      calculate_pixel_temp();
-      // memset(ctx->thermal_buf.thermal_data, 0, sizeof(ctx->thermal_buf.thermal_data));
-      memcpy(ctx->thermal_buf.thermal_data, data_pixel, sizeof(data_pixel));
-      // float ft_point = (data_pixel[16][16] / 10.0) - 273.15;
-      // printf("data_pixel[16][16] = %.2f\n", ft_point);
-      // cv_show_heimann_classic(&data_pixel[0][0]);
-      // cv_show_heimann_classic(&ctx->thermal_buf.thermal_data[0][0]);
-      
-      ctx->thermal_buf.updated = 1;
-      pthread_cond_signal(&ctx->thermal_buf.cond);
-      pthread_mutex_unlock(&ctx->thermal_buf.mutex);
-      // prob_lock = false;
-      
-    }
-    usleep(1000);
-  }
+			sort_data();
+			state = 0;
+			calculate_pixel_temp();
+			memcpy(ctx->thermal_buf.thermal_data, data_pixel, sizeof(data_pixel));
+			// float ft_point = (data_pixel[16][16] / 10.0) - 273.15;
+			// printf("data_pixel[16][16] = %.2f\n", ft_point);
+			
+			ctx->thermal_buf.updated = 1;
+			pthread_cond_signal(&ctx->thermal_buf.cond);
+			pthread_mutex_unlock(&ctx->thermal_buf.mutex);	
+		}
+		usleep(1000);
+	}
 
-  // 释放内存和文件
-  free(pixc2_0);
-  pixc2_0 = NULL;
+	// 释放内存和文件
+	free(pixc2_0);
+	pixc2_0 = NULL;
 
-  close(timer_fd);
-  close(sensor_fd);
-  close(eeprom_fd);
+	close(timer_fd);
+	close(sensor_fd);
+	close(eeprom_fd);
 
-  return NULL;
+	return NULL;
 }

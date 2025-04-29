@@ -12,7 +12,7 @@ extern "C" {
 #include "colormap.h"
 
 #include "mix415_drv.h"
-#include "thread.h"
+#include "public_cfg.h"
 
 
 #define WINDOW_WIDTH 1024

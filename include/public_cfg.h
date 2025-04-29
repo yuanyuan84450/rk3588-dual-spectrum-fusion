@@ -1,5 +1,6 @@
-#ifndef __THREAD_H
-#define __THREAD_H
+#ifndef _PUBLIC_CFG_H
+#define _PUBLIC_CFG_H
+
 
 #include <pthread.h>
 #include <stdint.h>
@@ -49,6 +50,5 @@ typedef struct {
     fusion_buffer_t fusion_buf;
     cmd_request_t cmd_req;
 } thread_context_t;
-
 
 #endif
