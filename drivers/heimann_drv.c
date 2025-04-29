@@ -1713,7 +1713,7 @@ void* thermal_thread(void *arg)
       calculate_pixel_temp();
       // memset(ctx->thermal_buf.thermal_data, 0, sizeof(ctx->thermal_buf.thermal_data));
       memcpy(ctx->thermal_buf.thermal_data, data_pixel, sizeof(data_pixel));
-      float ft_point = (data_pixel[16][16] / 10.0) - 273.15;
+      // float ft_point = (data_pixel[16][16] / 10.0) - 273.15;
       // printf("data_pixel[16][16] = %.2f\n", ft_point);
       // cv_show_heimann_classic(&data_pixel[0][0]);
       // cv_show_heimann_classic(&ctx->thermal_buf.thermal_data[0][0]);

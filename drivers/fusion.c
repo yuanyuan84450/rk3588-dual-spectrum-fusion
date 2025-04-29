@@ -5,8 +5,8 @@
 
 void* fusion_thread(void* arg) {
     thread_context_t* ctx = (thread_context_t*)arg;
-    int argc = ctx->thread_args.argc;
-    char **argv = ctx->thread_args.argv;
+    // int argc = ctx->thread_args.argc;
+    // char **argv = ctx->thread_args.argv;
 
 
     while (1) {

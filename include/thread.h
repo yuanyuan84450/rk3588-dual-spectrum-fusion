@@ -37,13 +37,17 @@ typedef struct {
     char **argv;
 } thread_args_t;
 
+typedef struct {
+    volatile int snapshot_request;
+
+} cmd_request_t;
 
 typedef struct {
     thread_args_t thread_args;
     thermal_buffer_t thermal_buf;
     yuv_buffer_t yuv_buf;
     fusion_buffer_t fusion_buf;
-    volatile int snapshot_request;
+    cmd_request_t cmd_req;
 } thread_context_t;
 
 

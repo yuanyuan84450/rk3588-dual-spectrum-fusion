@@ -22,7 +22,7 @@ void* cmd_thread(void *arg) {
     while (1) {
         if (fgets(input, sizeof(input), stdin)) {
             if (strncmp(input, "snap", 4) == 0) {
-                ctx->snapshot_request = 1;
+                ctx->cmd_req.snapshot_request = 1;
             }
         }
     }

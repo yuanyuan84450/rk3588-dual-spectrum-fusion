@@ -58,6 +58,34 @@ cv::Mat register_thermal_to_visible(const cv::Mat& thermal_img, const AdjustPara
     return registered_img;
 }
 
+// 使用sobel提取边缘
+cv::Mat extract_edges_sobel(const cv::Mat& roi_img) {
+    cv::Mat gray, blurred, grad_x, grad_y, abs_grad_x, abs_grad_y, edge_map, edge_colored, result;
+
+    // 1. 转换为灰度图
+    cv::cvtColor(roi_img, gray, cv::COLOR_BGR2GRAY);
+
+    // 2. 可选：高斯滤波去噪
+    cv::GaussianBlur(gray, blurred, cv::Size(5, 5), 1.5);
+
+    // 3. 计算 Sobel 梯度
+    cv::Sobel(blurred, grad_x, CV_16S, 1, 0, 3); // x 方向梯度
+    cv::Sobel(blurred, grad_y, CV_16S, 0, 1, 3); // y 方向梯度
+
+    // 4. 计算梯度幅值（取绝对值并转换到 8-bit）
+    cv::convertScaleAbs(grad_x, abs_grad_x);
+    cv::convertScaleAbs(grad_y, abs_grad_y);
+    cv::addWeighted(abs_grad_x, 1.5, abs_grad_y, 1.5, 0, edge_map);  //组合梯度
+
+    cv::bitwise_not(edge_map, edge_map);
+
+    cv::cvtColor(edge_map, edge_colored, cv::COLOR_GRAY2BGR);
+    cv::addWeighted(roi_img, 0.4, edge_colored, 0.6, 0, result);
+
+    return result;
+}
+
+
 
 int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_data, cv::Mat& out_bgr_img, cv::Mat& out_thermal_img) {
     // === 步骤 1: 处理摄像头图像 YUV → BGR ===
@@ -103,6 +131,8 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     out_bgr_img = roi_img.clone();    // 只保存ROI区域
     out_thermal_img = thermal_img.clone();
 
+    cv::Mat edge_img = extract_edges_sobel(roi_img);
+
     // 配准热成像图像到可见光图像ROI
 
     AdjustParams adjust;
@@ -110,12 +140,12 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     adjust.shift_y = 0;    
     adjust.scale = 0.85;    // 不缩放
     adjust.angle = 0.0;    // 不旋转
-    cv::Mat registered_thermal = register_thermal_to_visible(out_thermal_img, adjust);
+    cv::Mat registered_thermal = register_thermal_to_visible(thermal_img, adjust);
 
     // 融合显示（简单叠加）
     cv::Mat fusion_img;
     double alpha = 0.4; // 透明度，可调整
-    cv::addWeighted(roi_img, alpha, registered_thermal, 1.0 - alpha, 0, fusion_img);
+    cv::addWeighted(edge_img, alpha, registered_thermal, 1.0 - alpha, 0, fusion_img);
 
     // 把融合结果更新到显示图像左边区域
     fusion_img.copyTo(final_img(cv::Rect(0, 0, ROI_W, ROI_H)));
@@ -155,7 +185,7 @@ void* opencv_thread(void *arg){
         // draw_roi_frame(ctx->yuv_buf.yuv_data);
         // cv_show_heimann_classic(&ctx->thermal_buf.thermal_data[0][0]);
         cv_show_fusion_display(&ctx->thermal_buf.thermal_data[0][0], ctx->yuv_buf.yuv_data, save_bgr, save_thermal);
-        if (ctx->snapshot_request) {
+        if (ctx->cmd_req.snapshot_request) {
             // 保存热成像和可见光图像
             static int snapshot_count = 0;
             char filename_rgb[128];
@@ -173,7 +203,7 @@ void* opencv_thread(void *arg){
                 printf("Already captured 4 snapshots, ignoring further requests.\n");
             }
         
-            ctx->snapshot_request = 0; // 重置请求标志
+            ctx->cmd_req.snapshot_request = 0; // 重置请求标志
         }
 
         
