@@ -2,6 +2,9 @@
 
 #include "opencv_draw.h"
 
+using namespace cv;
+using namespace std;
+
 extern void load_colormap(uint8_t index);
 extern uint16_t viridis[180];
 extern uint16_t classic[180];
@@ -21,108 +24,108 @@ struct AdjustParams {
 };
 
 // 进行图像配准并返回配准后的热成像图
-cv::Mat register_thermal_to_visible(const cv::Mat& thermal_img, const AdjustParams& adjust = AdjustParams()) {
+Mat register_thermal_to_visible(const Mat& thermal_img, const AdjustParams& adjust = AdjustParams()) {
     // 热成像的4个点
-    std::vector<cv::Point2f> pts_thermal = {
-        cv::Point2f(42, 51),
-        cv::Point2f(212, 56),
-        cv::Point2f(15, 197),
-        cv::Point2f(212, 212)
+    vector<Point2f> pts_thermal = {
+        Point2f(50, 73),
+        Point2f(232, 81),
+        Point2f(46, 178),
+        Point2f(229, 176)
     };
 
     // 可见光ROI图像中的4个对应点
-    std::vector<cv::Point2f> pts_visible = {
-        cv::Point2f(90, 50),
-        cv::Point2f(415, 55),
-        cv::Point2f(40, 345),
-        cv::Point2f(458, 351)
+    vector<Point2f> pts_visible = {
+        Point2f(25, 45),
+        Point2f(535, 22),
+        Point2f(27, 333),
+        Point2f(526, 335)
     };
 
     // 计算单应矩阵
-    cv::Mat H = cv::findHomography(pts_thermal, pts_visible);
+    Mat H = findHomography(pts_thermal, pts_visible);
 
     // 初步配准
-    cv::Mat registered_img;
-    cv::warpPerspective(thermal_img, registered_img, H, cv::Size(ROI_W, ROI_H));
+    Mat registered_img;
+    warpPerspective(thermal_img, registered_img, H, Size(ROI_W, ROI_H));
 
     // ========== 追加微调 ==========
     if (adjust.shift_x != 0 || adjust.shift_y != 0 || adjust.scale != 1.0 || adjust.angle != 0.0) {
         // 以图像中心为基准
-        cv::Point2f center(registered_img.cols / 2.0f, registered_img.rows / 2.0f);
+        Point2f center(registered_img.cols / 2.0f, registered_img.rows / 2.0f);
 
         // 生成仿射矩阵（旋转+缩放）
-        cv::Mat M = cv::getRotationMatrix2D(center, adjust.angle, adjust.scale);
+        Mat M = getRotationMatrix2D(center, adjust.angle, adjust.scale);
 
         // 加上平移
         M.at<double>(0, 2) += adjust.shift_x;
         M.at<double>(1, 2) += adjust.shift_y;
 
         // 应用微调
-        cv::warpAffine(registered_img, registered_img, M, registered_img.size());
+        warpAffine(registered_img, registered_img, M, registered_img.size());
     }
 
     return registered_img;
 }
 
 // 使用sobel提取边缘
-cv::Mat extract_edges_sobel(const cv::Mat& roi_img) {
-    cv::Mat gray, blurred, grad_x, grad_y, abs_grad_x, abs_grad_y, edge_map, edge_colored, result;
+Mat extract_edges_sobel(const Mat& roi_img) {
+    Mat gray, blurred, grad_x, grad_y, abs_grad_x, abs_grad_y, edge_map, edge_colored, result;
 
     // 1. 转换为灰度图
-    cv::cvtColor(roi_img, gray, cv::COLOR_BGR2GRAY);
+    cvtColor(roi_img, gray, COLOR_BGR2GRAY);
 
     // 2. 可选：高斯滤波去噪
-    cv::GaussianBlur(gray, blurred, cv::Size(5, 5), 1.5);
+    GaussianBlur(gray, blurred, Size(3, 3), 1.5);
 
     // 3. 计算 Sobel 梯度
-    cv::Sobel(blurred, grad_x, CV_16S, 1, 0, 3); // x 方向梯度
-    cv::Sobel(blurred, grad_y, CV_16S, 0, 1, 3); // y 方向梯度
+    Sobel(blurred, grad_x, CV_16S, 1, 0, 3); // x 方向梯度
+    Sobel(blurred, grad_y, CV_16S, 0, 1, 3); // y 方向梯度
 
     // 4. 计算梯度幅值（取绝对值并转换到 8-bit）
-    cv::convertScaleAbs(grad_x, abs_grad_x);
-    cv::convertScaleAbs(grad_y, abs_grad_y);
-    cv::addWeighted(abs_grad_x, 1.5, abs_grad_y, 1.5, 0, edge_map);  //组合梯度
+    convertScaleAbs(grad_x, abs_grad_x);
+    convertScaleAbs(grad_y, abs_grad_y);
+    addWeighted(abs_grad_x, 1, abs_grad_y, 1, 0, edge_map);  //组合梯度,可以调整边缘强度
 
-    cv::bitwise_not(edge_map, edge_map);
+    bitwise_not(edge_map, edge_map);
 
-    cv::cvtColor(edge_map, edge_colored, cv::COLOR_GRAY2BGR);
-    cv::addWeighted(roi_img, 0.4, edge_colored, 0.6, 0, result);
+    cvtColor(edge_map, edge_colored, COLOR_GRAY2BGR);
+    addWeighted(roi_img, 0.3, edge_colored, 0.7, 0, result);
 
     return result;
 }
 
-cv::Mat estimate_intrinsic_matrix(int w, int h, double fov_deg) {
+Mat estimate_intrinsic_matrix(int w, int h, double fov_deg) {
     double fov_rad = fov_deg * CV_PI / 180.0;
     double fx = w / (2.0 * tan(fov_rad / 2.0));
     double fy = fx;
     double cx = w / 2.0;
     double cy = h / 2.0;
-    return (cv::Mat_<double>(3,3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
+    return (Mat_<double>(3,3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
 }
 
-cv::Mat correct_image(const cv::Mat& src, const cv::Mat& K_src, const cv::Mat& K_dst) {
-    cv::Mat map1, map2;
-    cv::initUndistortRectifyMap(K_src, cv::Mat::zeros(5,1,CV_64F),
-                                cv::Mat(), K_dst, src.size(), CV_32FC1, map1, map2);
-    cv::Mat dst;
-    cv::remap(src, dst, map1, map2, cv::INTER_LINEAR);
+Mat correct_image(const Mat& src, const Mat& K_src, const Mat& K_dst) {
+    Mat map1, map2;
+    initUndistortRectifyMap(K_src, Mat::zeros(5,1,CV_64F),
+                            Mat(), K_dst, src.size(), CV_32FC1, map1, map2);
+    Mat dst;
+    remap(src, dst, map1, map2, INTER_LINEAR);
     return dst;
 }
 
 
-int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_data, cv::Mat& out_bgr_img, cv::Mat& out_thermal_img) {
+int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_data, Mat& out_bgr_img, Mat& out_thermal_img) {
     // === 步骤 1: 处理摄像头图像 YUV → BGR ===
-    cv::Mat yuv_img(MIX_HEIGHT * 3 / 2, MIX_WIDTH, CV_8UC1, (void*)yuv_data);  // 假设 NV12 格式
-    cv::Mat bgr_img;
-    cv::cvtColor(yuv_img, bgr_img, cv::COLOR_YUV2BGR_NV12);       // 转换成 BGR 格式
+    Mat yuv_img(MIX_HEIGHT * 3 / 2, MIX_WIDTH, CV_8UC1, (void*)yuv_data);  // 假设 NV12 格式
+    Mat bgr_img;
+    cvtColor(yuv_img, bgr_img, COLOR_YUV2BGR_NV12);       // 转换成 BGR 格式
 
     // === 步骤 2: 处理热成像图像 ===
     unsigned short draw_pixel[32][32] = {{0}};
     int temp_inter = 0;
     const int disp_rows = 32 * PROB_SCALE;  // 128
     const int disp_cols = 32 * PROB_SCALE;  // 128
-    cv::Mat thermal_img(disp_rows, disp_cols, CV_8UC3, cv::Scalar(0, 0, 0));
-    cv::Mat lanczos_img(32, 32, CV_8UC1, cv::Scalar(0));
+    Mat thermal_img(disp_rows, disp_cols, CV_8UC3, Scalar(0, 0, 0));
+    Mat lanczos_img(32, 32, CV_8UC1, Scalar(0));
 
     for (int i = 0; i < 32; i++) {
         for (int j = 0; j < 32; j++) {
@@ -136,10 +139,10 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
             
         }
     }
-    cv::GaussianBlur(lanczos_img, lanczos_img, cv::Size(3, 3), 0); //高斯降噪，平滑图像、去除高频噪声
+    GaussianBlur(lanczos_img, lanczos_img, Size(3, 3), 0); //高斯降噪，平滑图像、去除高频噪声
 
-    cv::resize(lanczos_img, lanczos_img, cv::Size(256, 256), 0, 0, cv::INTER_LANCZOS4);
-    // cv::medianBlur(lanczos_img, lanczos_img, 3); //中值滤波，处理椒盐噪声或孤立点
+    resize(lanczos_img, lanczos_img, Size(256, 256), 0, 0, INTER_LANCZOS4);
+    // medianBlur(lanczos_img, lanczos_img, 3); //中值滤波，处理椒盐噪声或孤立点
 
     //双线性插值
     // for (int y = 0; y < disp_rows; y++) {
@@ -148,7 +151,7 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     //         // printf("temp_inter=[%d][%d]=%d\n", y, x, temp_inter);
     //         uint8_t r, g, b;
     //         get_rgb888_from_rgb565(turbo[temp_inter], &r, &g, &b);
-    //         thermal_img.at<cv::Vec3b>(y, x) = cv::Vec3b(b, g, r);
+    //         thermal_img.at<Vec3b>(y, x) = Vec3b(b, g, r);
     //     }
     // }
 
@@ -157,60 +160,59 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
             temp_inter = lanczos_img.at<uchar>(y, x);
             // printf("temp_inter=[%d][%d]=%d\n", y, x, temp_inter);
             uint8_t r, g, b;
-            get_rgb888_from_rgb565(greys_r[temp_inter], &r, &g, &b);
-            thermal_img.at<cv::Vec3b>(y, x) = cv::Vec3b(b, g, r);
+            get_rgb888_from_rgb565(turbo[temp_inter], &r, &g, &b);
+            thermal_img.at<Vec3b>(y, x) = Vec3b(b, g, r);
         }
     }
 
     float ft_point = (float)(thermal_pixel[16*32+16] / 10) - 273.15;
-    printf("ft_point[16][16]=%.2f\n", ft_point);
+    // printf("ft_point[16][16]=%.2f\n", ft_point);
 
 
     // === 步骤 3: 创建总显示图像 ===
-    cv::Mat final_img(WINDOW_HEIGHT, WINDOW_WIDTH, CV_8UC3, cv::Scalar(0, 0, 0)); // 创建黑底画布
+    Mat final_img(WINDOW_HEIGHT, WINDOW_WIDTH, CV_8UC3, Scalar(0, 0, 0)); // 创建黑底画布
 
     // 左边放摄像头图像（480x480）
-    // cv::resize(bgr_img, bgr_img, cv::Size(MIX_WIDTH, MIX_WIDTH));
-    cv::Rect roi_rect(ROI_X, ROI_Y, ROI_W, ROI_H);
-    cv::Mat roi_img = bgr_img(roi_rect);
+    // resize(bgr_img, bgr_img, Size(MIX_WIDTH, MIX_WIDTH));
+    Rect roi_rect(ROI_X, ROI_Y, ROI_W, ROI_H);
+    Mat roi_img = bgr_img(roi_rect);
 
     int w_th = 640, h_th = 360;
     double fov_th = 94.0, fov_vis = 119.8;
-    cv::Mat K_th = estimate_intrinsic_matrix(640, 360, fov_th);
-    cv::Mat K_vis = estimate_intrinsic_matrix(640, 360, fov_vis);
-    cv::Mat visible_corrected = correct_image(roi_img, K_vis, K_th);
+    Mat K_th = estimate_intrinsic_matrix(640, 360, fov_th);
+    Mat K_vis = estimate_intrinsic_matrix(640, 360, fov_vis);
+    Mat visible_corrected = correct_image(roi_img, K_vis, K_th);
 
-    visible_corrected.copyTo(final_img(cv::Rect(0, 0, ROI_W, ROI_H)));
 
-    // 右边中央放热成像图像（128x128）
-    thermal_img.copyTo(final_img(cv::Rect(ROI_X+ROI_W+10, 0, disp_cols, disp_rows)));
+    visible_corrected.copyTo(final_img(Rect(0, 0, ROI_W, ROI_H)));
+    thermal_img.copyTo(final_img(Rect(ROI_X+ROI_W+10, 0, disp_cols, disp_rows)));
 
-    // out_bgr_img = roi_img.clone();    // 只保存ROI区域
-    // out_thermal_img = thermal_img.clone();
+    out_bgr_img = visible_corrected.clone();    // 只保存ROI区域
+    out_thermal_img = thermal_img.clone();
 
-    // cv::Mat edge_img = extract_edges_sobel(roi_img);
+    Mat edge_img = extract_edges_sobel(visible_corrected);
 
     // // 配准热成像图像到可见光图像ROI
 
-    // AdjustParams adjust;
-    // adjust.shift_x = 35;   // 往右移动10个像素
-    // adjust.shift_y = 0;    
-    // adjust.scale = 0.85;    // 不缩放
-    // adjust.angle = 0.0;    // 不旋转
-    // cv::Mat registered_thermal = register_thermal_to_visible(thermal_img, adjust);
+    AdjustParams adjust;
+    adjust.shift_x = 50;   // 往右移动10个像素
+    adjust.shift_y = 10;    
+    adjust.scale = 1;    // 不缩放
+    adjust.angle = 0.0;    // 不旋转
+    Mat registered_thermal = register_thermal_to_visible(thermal_img, adjust);
 
-    // // 融合显示（简单叠加）
-    // cv::Mat fusion_img;
-    // cv::addWeighted(edge_img, 0.4, registered_thermal,0.6, 0, fusion_img);
+    // 融合显示（简单叠加）
+    Mat fusion_img;
+    addWeighted(edge_img, 0.4, registered_thermal,0.6, 0, fusion_img);
 
-    // // 把融合结果更新到显示图像左边区域
-    // fusion_img.copyTo(final_img(cv::Rect(0, 0, ROI_W, ROI_H)));
+    // 把融合结果更新到显示图像左边区域
+    // fusion_img.copyTo(final_img(Rect(0, 0, ROI_W, ROI_H)));
     
 
     // === 步骤 4: 显示窗口 ===
-    // cv::imshow("Fusion Display", visible_corrected);
-    cv::imshow("Fusion Display", final_img);
-    cv::waitKey(1);
+    // imshow("Fusion Display", visible_corrected);
+    imshow("Fusion Display", fusion_img);
+    waitKey(1);
 
     return 0;
 }
@@ -221,7 +223,7 @@ void* opencv_thread(void *arg){
     // int argc = ctx->thread_args.argc;
     // char **argv = ctx->thread_args.argv;
     // printf("opencv_thread!!!\n");
-    cv::Mat save_bgr, save_thermal;
+    Mat save_bgr, save_thermal;
 
     while(1){
 
@@ -251,8 +253,8 @@ void* opencv_thread(void *arg){
             snprintf(filename_thermal, sizeof(filename_thermal), "snapshot_thermal_%d.png", snapshot_count);
         
             // 保存
-            cv::imwrite(filename_rgb, save_bgr);
-            cv::imwrite(filename_thermal, save_thermal);
+            imwrite(filename_rgb, save_bgr);
+            imwrite(filename_thermal, save_thermal);
         
             printf("Saved snapshot %d\n", snapshot_count);
             snapshot_count++;
