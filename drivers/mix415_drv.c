@@ -118,7 +118,7 @@ void* camera_thread(void *arg) {
     size_t frame_size = MIX_WIDTH * MIX_HEIGHT * 3 / 2; // NV12大小
     uint8_t *local_frame_buffer = malloc(frame_size); // 本地拷贝缓冲区
 
-    while (1) {
+    while (!ctx->cmd_req.exit_req) {
         fd_set fds;
         FD_ZERO(&fds);
         FD_SET(fd, &fds);

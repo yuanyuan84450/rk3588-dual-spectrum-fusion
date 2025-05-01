@@ -225,7 +225,7 @@ void* opencv_thread(void *arg){
     // printf("opencv_thread!!!\n");
     Mat save_bgr, save_thermal;
 
-    while(1){
+    while(!ctx->cmd_req.exit_req){
 
         pthread_mutex_lock(&ctx->thermal_buf.mutex);
         while (!ctx->thermal_buf.updated)

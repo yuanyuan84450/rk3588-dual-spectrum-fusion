@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <string.h>
+#include <signal.h>
 
 #define TH_THERMAL_ROWS 32
 #define TH_THERMAL_COLS 32
@@ -39,7 +40,10 @@ typedef struct {
 } thread_args_t;
 
 typedef struct {
-    volatile int snapshot_request;
+    volatile sig_atomic_t snapshot_request;
+    volatile sig_atomic_t print_eeprom_header_req;
+    volatile sig_atomic_t print_eeprom_hex_req;
+    volatile sig_atomic_t exit_req;
 
 } cmd_request_t;
 

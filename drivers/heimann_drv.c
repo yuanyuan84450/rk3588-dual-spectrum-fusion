@@ -1561,7 +1561,7 @@ void* thermal_thread(void *arg)
 	fds.fd = timer_fd;
 	fds.events = POLLIN;
 
-	while (1)
+	while (!ctx->cmd_req.exit_req)
 	{
     ret = poll(&fds, 1, -1); // 阻塞直到定时器事件发生
     if (ret > 0)
@@ -1606,6 +1606,16 @@ void* thermal_thread(void *arg)
 			pthread_cond_signal(&ctx->thermal_buf.cond);
 			pthread_mutex_unlock(&ctx->thermal_buf.mutex);	
 		}
+
+    if(ctx->cmd_req.print_eeprom_header_req){
+      print_eeprom_header();
+      ctx->cmd_req.print_eeprom_header_req = 0;
+    }
+    if(ctx->cmd_req.print_eeprom_hex_req){
+      print_eeprom_hex(eeprom_fd);
+      ctx->cmd_req.print_eeprom_hex_req = 0;
+    }
+    
 		usleep(1000);
 	}
 
