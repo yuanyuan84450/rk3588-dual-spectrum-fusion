@@ -2,8 +2,8 @@
 # 编译器设置
 CC := gcc
 CXX := g++
-CFLAGS := -Wall -O2 -Iinclude -Iopencv -MMD -MP
-CXXFLAGS := -Wall -O2 -Iinclude -Iopencv -MMD -MP `pkg-config --cflags opencv4`
+CFLAGS := -Wall -O2 -Iinclude -Iopencv -Iyolov5 -MMD -MP
+CXXFLAGS := -Wall -O2 -Iinclude -Iopencv -Iyolov5 -MMD -MP `pkg-config --cflags opencv4`
 
 LDFLAGS :=
 LDLIBS := -lm -lpthread -lreadline -lhistory `pkg-config --libs opencv4`
@@ -13,7 +13,7 @@ C_SRC := $(wildcard src/*.c drivers/*.c)
 C_OBJ := $(patsubst %.c, build/%.o, $(C_SRC))
 
 # C++ 源文件与目标文件
-CPP_SRC := $(wildcard opencv/*.cpp)
+CPP_SRC := $(wildcard opencv/*.cpp yolov5/*.cpp)
 CPP_OBJ := $(patsubst %.cpp, build/%.o, $(CPP_SRC))
 
 # 所有对象文件
