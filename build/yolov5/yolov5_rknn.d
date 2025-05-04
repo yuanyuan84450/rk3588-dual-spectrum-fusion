@@ -1,4 +1,4 @@
-build/opencv/opencv_test.o: opencv/opencv_test.cpp opencv/opencv_test.h \
+build/yolov5/yolov5_rknn.o: yolov5/yolov5_rknn.cpp \
  /usr/include/opencv4/opencv2/opencv.hpp \
  /usr/include/opencv4/opencv2/opencv_modules.hpp \
  /usr/include/opencv4/opencv2/core.hpp \
@@ -101,8 +101,8 @@ build/opencv/opencv_test.o: opencv/opencv_test.cpp opencv/opencv_test.h \
  /usr/include/opencv4/opencv2/stitching/detail/camera.hpp \
  /usr/include/opencv4/opencv2/video.hpp \
  /usr/include/opencv4/opencv2/video/tracking.hpp \
- /usr/include/opencv4/opencv2/video/background_segm.hpp
-opencv/opencv_test.h:
+ /usr/include/opencv4/opencv2/video/background_segm.hpp yolov5/rknn_api.h \
+ yolov5/yolov5_rknn.h
 /usr/include/opencv4/opencv2/opencv.hpp:
 /usr/include/opencv4/opencv2/opencv_modules.hpp:
 /usr/include/opencv4/opencv2/core.hpp:
@@ -206,3 +206,5 @@ opencv/opencv_test.h:
 /usr/include/opencv4/opencv2/video.hpp:
 /usr/include/opencv4/opencv2/video/tracking.hpp:
 /usr/include/opencv4/opencv2/video/background_segm.hpp:
+yolov5/rknn_api.h:
+yolov5/yolov5_rknn.h:

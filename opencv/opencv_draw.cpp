@@ -1,6 +1,7 @@
 #include "opencv2/opencv.hpp"
 
 #include "opencv_draw.h"
+#include "yolov5_rknn.h"
 
 using namespace cv;
 using namespace std;
@@ -183,6 +184,9 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     Mat K_vis = estimate_intrinsic_matrix(640, 360, fov_vis);
     Mat visible_corrected = correct_image(roi_img, K_vis, K_th);
 
+    Mat yolo_img;
+    yolov5_detect(visible_corrected, yolo_img);
+
 
     visible_corrected.copyTo(final_img(Rect(0, 0, ROI_W, ROI_H)));
     thermal_img.copyTo(final_img(Rect(ROI_X+ROI_W+10, 0, disp_cols, disp_rows)));
@@ -211,7 +215,7 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
 
     // === 步骤 4: 显示窗口 ===
     // imshow("Fusion Display", visible_corrected);
-    imshow("Fusion Display", fusion_img);
+    imshow("Fusion Display", yolo_img);
     waitKey(1);
 
     return 0;

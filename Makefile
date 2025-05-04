@@ -2,11 +2,23 @@
 # 编译器设置
 CC := gcc
 CXX := g++
-CFLAGS := -Wall -O2 -Iinclude -Iopencv -Iyolov5 -MMD -MP
-CXXFLAGS := -Wall -O2 -Iinclude -Iopencv -Iyolov5 -MMD -MP `pkg-config --cflags opencv4`
+# CFLAGS := -Wall -O2 -Iinclude -Iopencv -Iyolov5 -MMD -MP
+# CXXFLAGS := -Wall -O2 -Iinclude -Iopencv -Iyolov5 -MMD -MP `pkg-config --cflags opencv4`
+# CFLAGS := -Wall -g -Iinclude -Iopencv -Iyolov5 -MMD -MP
+# CXXFLAGS := -Wall -g -Iinclude -Iopencv -Iyolov5 -MMD -MP `pkg-config --cflags opencv4`
+
+# 默认构建模式（可被覆盖）
+BUILD_MODE ?= release
+ifeq ($(BUILD_MODE), debug)
+	CFLAGS := -Wall -g -Iinclude -Iopencv -Iyolov5 -MMD -MP
+	CXXFLAGS := -Wall -g -Iinclude -Iopencv -Iyolov5 -MMD -MP `pkg-config --cflags opencv4`
+else
+	CFLAGS := -Wall -O2 -Iinclude -Iopencv -Iyolov5 -MMD -MP
+	CXXFLAGS := -Wall -O2 -Iinclude -Iopencv -Iyolov5 -MMD -MP `pkg-config --cflags opencv4`
+endif
 
 LDFLAGS :=
-LDLIBS := -lm -lpthread -lreadline -lhistory `pkg-config --libs opencv4`
+LDLIBS := -lm -lpthread -lreadline -lhistory `pkg-config --libs opencv4` -lrknnrt
 
 # C 源文件与目标文件
 C_SRC := $(wildcard src/*.c drivers/*.c)
@@ -43,6 +55,10 @@ $(TARGET): $(OBJ)
 # 自动依赖
 -include $(DEP)
 
+# 快捷目标 gdb，用于调试版本编译
+gdb:
+	$(MAKE) BUILD_MODE=debug
+	
 # 清理
 clean:
 	@echo "[CLEAN]"
