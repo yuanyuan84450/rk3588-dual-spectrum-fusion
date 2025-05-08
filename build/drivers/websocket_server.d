@@ -1,5 +1,5 @@
-build/opencv/opencv_draw.o: opencv/opencv_draw.cpp \
- /usr/include/opencv4/opencv2/opencv.hpp \
+build/drivers/websocket_server.o: drivers/websocket_server.cpp \
+ include/websocket_server.h /usr/include/opencv4/opencv2/opencv.hpp \
  /usr/include/opencv4/opencv2/opencv_modules.hpp \
  /usr/include/opencv4/opencv2/core.hpp \
  /usr/include/opencv4/opencv2/core/cvdef.h \
@@ -101,11 +101,8 @@ build/opencv/opencv_draw.o: opencv/opencv_draw.cpp \
  /usr/include/opencv4/opencv2/stitching/detail/camera.hpp \
  /usr/include/opencv4/opencv2/video.hpp \
  /usr/include/opencv4/opencv2/video/tracking.hpp \
- /usr/include/opencv4/opencv2/video/background_segm.hpp \
- opencv/opencv_draw.h include/heimann_inter.h include/heimann_drv.h \
- include/heimann_reg.h include/colormap.h include/heimann_drv.h \
- include/mix415_drv.h include/public_cfg.h yolov5/yolov5_rknn.h \
- include/websocket_server.h
+ /usr/include/opencv4/opencv2/video/background_segm.hpp
+include/websocket_server.h:
 /usr/include/opencv4/opencv2/opencv.hpp:
 /usr/include/opencv4/opencv2/opencv_modules.hpp:
 /usr/include/opencv4/opencv2/core.hpp:
@@ -209,13 +206,3 @@ build/opencv/opencv_draw.o: opencv/opencv_draw.cpp \
 /usr/include/opencv4/opencv2/video.hpp:
 /usr/include/opencv4/opencv2/video/tracking.hpp:
 /usr/include/opencv4/opencv2/video/background_segm.hpp:
-opencv/opencv_draw.h:
-include/heimann_inter.h:
-include/heimann_drv.h:
-include/heimann_reg.h:
-include/colormap.h:
-include/heimann_drv.h:
-include/mix415_drv.h:
-include/public_cfg.h:
-yolov5/yolov5_rknn.h:
-include/websocket_server.h:

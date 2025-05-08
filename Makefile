@@ -18,14 +18,15 @@ else
 endif
 
 LDFLAGS :=
-LDLIBS := -lm -lpthread -lreadline -lhistory `pkg-config --libs opencv4` -lrknnrt
+LDLIBS := -lm -lpthread -lreadline -lhistory `pkg-config --libs opencv4` -lrknnrt \
+          `pkg-config --libs libwebsockets openssl`
 
 # C 源文件与目标文件
 C_SRC := $(wildcard src/*.c drivers/*.c)
 C_OBJ := $(patsubst %.c, build/%.o, $(C_SRC))
 
 # C++ 源文件与目标文件
-CPP_SRC := $(wildcard opencv/*.cpp yolov5/*.cpp)
+CPP_SRC := $(wildcard opencv/*.cpp yolov5/*.cpp drivers/*.cpp)
 CPP_OBJ := $(patsubst %.cpp, build/%.o, $(CPP_SRC))
 
 # 所有对象文件
@@ -58,6 +59,10 @@ $(TARGET): $(OBJ)
 # 快捷目标 gdb，用于调试版本编译
 gdb:
 	$(MAKE) BUILD_MODE=debug
+	sudo gdbserver :1234 ./app /dev/i2c-6 /dev/i2c-5 /dev/video11
+run:
+	$(MAKE)
+	sudo ./app /dev/i2c-6 /dev/i2c-5 /dev/video11	
 	
 # 清理
 clean:

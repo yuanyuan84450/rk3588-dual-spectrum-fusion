@@ -1,12 +1,13 @@
 #ifndef __OPENCV_DRAW_H
 #define __OPENCV_DRAW_H
 
-#include <stdint.h>
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include <stdint.h>
 #include "heimann_inter.h"
 #include "heimann_drv.h"
 #include "colormap.h"

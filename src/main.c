@@ -18,6 +18,7 @@
 #include "mix415_drv.h"
 #include "public_cfg.h"
 #include "opencv_draw.h"
+#include "websocket_server.h"
 
 const char* commands[] = {
     "heimann-snap",
@@ -96,7 +97,7 @@ int main(int argc, char *argv[])
     ctx->thread_args.argc = argc;
     ctx->thread_args.argv = argv;
 
-    pthread_t therm_tid, cam_tid, opencv_tid, cmd_tid;
+    pthread_t therm_tid, cam_tid, opencv_tid, cmd_tid, ws_tid;
     // thread_args_t *args = malloc(sizeof(thread_args_t));
     // args->argc = argc;
     // args->argv = argv;
@@ -121,11 +122,17 @@ int main(int argc, char *argv[])
         perror("Failed to create camera_thread");
         return -1;
     }
+    
+    if (pthread_create(&ws_tid, NULL, websocket_thread_func, NULL) != 0) {
+        perror("Failed to create camera_thread");
+        return -1;
+    }
 
     pthread_join(therm_tid, NULL);
     pthread_join(cam_tid, NULL);
     pthread_join(opencv_tid, NULL);
     pthread_join(cmd_tid, NULL);
+    pthread_join(ws_tid, NULL);
 
     free(ctx);  // 线程结束后释放内存
     return 0;

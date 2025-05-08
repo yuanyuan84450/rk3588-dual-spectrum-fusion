@@ -2,6 +2,7 @@
 
 #include "opencv_draw.h"
 #include "yolov5_rknn.h"
+#include "websocket_server.h"
 
 using namespace cv;
 using namespace std;
@@ -15,6 +16,7 @@ extern uint16_t inferno[180];
 extern uint16_t greys_r[180];
 extern uint16_t greys[180];
 extern void get_rgb888_from_rgb565(uint16_t val, uint8_t* r8, uint8_t* g8, uint8_t* b8);
+extern void send_fusion_frame(const cv::Mat& fusion_img);
 
 struct AdjustParams {
     float shift_x;  // X方向微调（像素）
@@ -90,9 +92,9 @@ Mat extract_edges_sobel(const Mat& roi_img) {
     bitwise_not(edge_map, edge_map);
 
     cvtColor(edge_map, edge_colored, COLOR_GRAY2BGR);
-    addWeighted(roi_img, 0.3, edge_colored, 0.7, 0, result);
+    // addWeighted(roi_img, 0.3, edge_colored, 0.7, 0, result);
 
-    return result;
+    return edge_colored;
 }
 
 Mat estimate_intrinsic_matrix(int w, int h, double fov_deg) {
@@ -145,17 +147,6 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     resize(lanczos_img, lanczos_img, Size(256, 256), 0, 0, INTER_LANCZOS4);
     // medianBlur(lanczos_img, lanczos_img, 3); //中值滤波，处理椒盐噪声或孤立点
 
-    //双线性插值
-    // for (int y = 0; y < disp_rows; y++) {
-    //     for (int x = 0; x < disp_cols; x++) {
-    //         temp_inter = bio_linear_interpolation(x, y, &draw_pixel[0][0]);
-    //         // printf("temp_inter=[%d][%d]=%d\n", y, x, temp_inter);
-    //         uint8_t r, g, b;
-    //         get_rgb888_from_rgb565(turbo[temp_inter], &r, &g, &b);
-    //         thermal_img.at<Vec3b>(y, x) = Vec3b(b, g, r);
-    //     }
-    // }
-
     for (int y = 0; y < disp_rows; y++) {
         for (int x = 0; x < disp_cols; x++) {
             temp_inter = lanczos_img.at<uchar>(y, x);
@@ -184,19 +175,17 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     Mat K_vis = estimate_intrinsic_matrix(640, 360, fov_vis);
     Mat visible_corrected = correct_image(roi_img, K_vis, K_th);
 
-    Mat yolo_img;
-    yolov5_detect(visible_corrected, yolo_img);
 
-
-    visible_corrected.copyTo(final_img(Rect(0, 0, ROI_W, ROI_H)));
-    thermal_img.copyTo(final_img(Rect(ROI_X+ROI_W+10, 0, disp_cols, disp_rows)));
+    // yolo_img.copyTo(final_img(Rect(0, 0, ROI_W, ROI_H)));
+    // thermal_img.copyTo(final_img(Rect(ROI_X+ROI_W+10, 0, disp_cols, disp_rows)));
 
     out_bgr_img = visible_corrected.clone();    // 只保存ROI区域
     out_thermal_img = thermal_img.clone();
 
-    Mat edge_img = extract_edges_sobel(visible_corrected);
+    Mat yolo_img;
+    yolov5_detect(visible_corrected, yolo_img);
 
-    // // 配准热成像图像到可见光图像ROI
+    Mat edge_img = extract_edges_sobel(visible_corrected);
 
     AdjustParams adjust;
     adjust.shift_x = 50;   // 往右移动10个像素
@@ -206,16 +195,18 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     Mat registered_thermal = register_thermal_to_visible(thermal_img, adjust);
 
     // 融合显示（简单叠加）
-    Mat fusion_img;
-    addWeighted(edge_img, 0.4, registered_thermal,0.6, 0, fusion_img);
+    Mat fusion_img,fusion_img1;
+    addWeighted(yolo_img, 0.4, registered_thermal,0.6, 0, fusion_img);
 
+    addWeighted(edge_img, 0.1, fusion_img,0.9, 0, fusion_img1);
+    
     // 把融合结果更新到显示图像左边区域
     // fusion_img.copyTo(final_img(Rect(0, 0, ROI_W, ROI_H)));
     
-
+    send_fusion_frame(fusion_img1);
     // === 步骤 4: 显示窗口 ===
     // imshow("Fusion Display", visible_corrected);
-    imshow("Fusion Display", yolo_img);
+    imshow("Fusion Display", fusion_img1);
     waitKey(1);
 
     return 0;
