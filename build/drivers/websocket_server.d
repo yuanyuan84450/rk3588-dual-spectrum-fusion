@@ -101,7 +101,8 @@ build/drivers/websocket_server.o: drivers/websocket_server.cpp \
  /usr/include/opencv4/opencv2/stitching/detail/camera.hpp \
  /usr/include/opencv4/opencv2/video.hpp \
  /usr/include/opencv4/opencv2/video/tracking.hpp \
- /usr/include/opencv4/opencv2/video/background_segm.hpp
+ /usr/include/opencv4/opencv2/video/background_segm.hpp \
+ include/public_cfg.h
 include/websocket_server.h:
 /usr/include/opencv4/opencv2/opencv.hpp:
 /usr/include/opencv4/opencv2/opencv_modules.hpp:
@@ -206,3 +207,4 @@ include/websocket_server.h:
 /usr/include/opencv4/opencv2/video.hpp:
 /usr/include/opencv4/opencv2/video/tracking.hpp:
 /usr/include/opencv4/opencv2/video/background_segm.hpp:
+include/public_cfg.h:

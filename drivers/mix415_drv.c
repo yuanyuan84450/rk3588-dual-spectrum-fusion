@@ -173,9 +173,15 @@ void* camera_thread(void *arg) {
             break;
         }
     }
-
+    
+    for (int i = 0; i < req.count; i++) {
+        munmap(buffers[i].start, buffers[i].length);
+    }
+    free(buffers);
     free(local_frame_buffer);
+
     ioctl(fd, VIDIOC_STREAMOFF, &type);
     close(fd);
+
     return NULL;
 }

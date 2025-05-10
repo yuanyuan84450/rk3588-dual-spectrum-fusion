@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-void* websocket_thread_func(void* arg);
+void* websocket_thread(void* arg);
 
 #ifdef __cplusplus
 }

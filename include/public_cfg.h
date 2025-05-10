@@ -44,6 +44,9 @@ typedef struct {
     volatile sig_atomic_t print_eeprom_header_req;
     volatile sig_atomic_t print_eeprom_hex_req;
     volatile sig_atomic_t exit_req;
+    volatile sig_atomic_t colormap_ctrl;
+    volatile sig_atomic_t yolo_req;
+    volatile sig_atomic_t edge_req;
 
 } cmd_request_t;
 

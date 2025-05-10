@@ -59,7 +59,7 @@ $(TARGET): $(OBJ)
 # 快捷目标 gdb，用于调试版本编译
 gdb:
 	$(MAKE) BUILD_MODE=debug
-	sudo gdbserver :1234 ./app /dev/i2c-6 /dev/i2c-5 /dev/video11
+# sudo gdbserver :1234 ./app /dev/i2c-6 /dev/i2c-5 /dev/video11
 run:
 	$(MAKE)
 	sudo ./app /dev/i2c-6 /dev/i2c-5 /dev/video11	

@@ -1,14 +1,10 @@
-// websocket_server.c
-// #ifdef __cplusplus
-// extern "C" {
-// #endif
-
 #include "websocket_server.h"
 #include <libwebsockets.h>
 #include <pthread.h>
 #include <opencv2/opencv.hpp>
 #include <string.h>
 #include <stdlib.h>
+#include "public_cfg.h"
 
 #define MAX_FRAME_SIZE (1024 * 1024)  // 1MB 图像缓冲区
 static uint8_t image_buffer[MAX_FRAME_SIZE];
@@ -113,8 +109,12 @@ static struct lws_protocols protocols[] = {
     { NULL, NULL, 0, 0 } // terminator
 };
 
-void* websocket_thread_func(void* arg)
+void* websocket_thread(void* arg)
 {
+    thread_context_t* ctx = (thread_context_t*)arg;
+    int argc = ctx->thread_args.argc;
+    char **argv = ctx->thread_args.argv;
+
     struct lws_context_creation_info info;
     memset(&info, 0, sizeof(info));
     info.port = 9002;
@@ -126,13 +126,16 @@ void* websocket_thread_func(void* arg)
         return NULL;
     }
 
-    while (1) {
+    while (!ctx->cmd_req.exit_req) {
         lws_service(context, 50);
         if (global_wsi) {
             lws_callback_on_writable(global_wsi);
         }
     }
+
+    pthread_mutex_destroy(&buffer_mutex);
     lws_context_destroy(context);
+    
     return NULL;
 }
 
@@ -148,7 +151,3 @@ void send_fusion_frame(const cv::Mat& fusion_img)
     }
     pthread_mutex_unlock(&buffer_mutex);
 }
-
-// #ifdef __cplusplus
-// }
-// #endif

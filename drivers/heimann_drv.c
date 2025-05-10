@@ -1574,7 +1574,7 @@ void* thermal_thread(void *arg)
         if (n != sizeof(expirations))
         {
           perror("read(timer_fd) failed");
-          // continue; // 或者你认为合适的处理方式
+          continue; // 或者你认为合适的处理方式
         }
         heimann_timer_handle(); // 设置标志位
       }
@@ -1622,6 +1622,8 @@ void* thermal_thread(void *arg)
 	// 释放内存和文件
 	free(pixc2_0);
 	pixc2_0 = NULL;
+
+  stop_timer(timer_fd); // 显式取消定时器
 
 	close(timer_fd);
 	close(sensor_fd);

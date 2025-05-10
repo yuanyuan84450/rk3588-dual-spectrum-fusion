@@ -2,8 +2,6 @@
 
 #include "heimann_drv.h"
 #include "colormap.h"
-//保存了热力图的颜色表，格式为rgb565
-static uint16_t colormap[180];
 
 uint16_t viridis[180] = {
 0x400a, 0x400a, 0x400a, 0x400a, 0x400a, 0x400a, 0x402b, 0x402b, 0x404b, 0x404b, 
@@ -110,7 +108,7 @@ uint16_t inferno[180] = {
 0xf6ea, 0xf72b, 0xf72c, 0xf74d, 0xf76e, 0xf78f, 0xf7b0, 0xf7b1, 0xf7d2, 0xfff3
 };
 
-uint16_t greys_r[180] = { // 白热
+uint16_t grays_r[180] = { // 白热
 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0020, 0x0020, 0x0020, 0x0841, 
 0x0841, 0x0841, 0x0841, 0x0841, 0x0841, 0x0861, 0x0861, 0x0861, 0x1082, 0x1082, 
 0x1082, 0x1082, 0x1082, 0x1082, 0x10a2, 0x10a2, 0x10a2, 0x18c3, 0x18c3, 0x18c3, 
@@ -131,7 +129,7 @@ uint16_t greys_r[180] = { // 白热
 0xf7be, 0xf7be, 0xf7be, 0xf7be, 0xffdf, 0xffdf, 0xffdf, 0xffdf, 0xffff, 0xffff
 };
 
-uint16_t greys[180] = {  // 黑热
+uint16_t grays[180] = {  // 黑热
 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffdf, 
 0xffdf, 0xffdf, 0xffdf, 0xffdf, 0xffdf, 0xffdf, 0xffdf, 0xffdf, 0xffdf, 0xffdf, 
 0xf7be, 0xf7be, 0xf7be, 0xf7be, 0xf7be, 0xf7be, 0xf7be, 0xf7be, 0xf7be, 0xf7be, 
@@ -171,27 +169,26 @@ void get_rgb888_from_rgb565(uint16_t val, uint8_t* r8, uint8_t* g8, uint8_t* b8)
     // return (r8 << 16) | (g8 << 8) | b8;
 }
 
-void load_colormap(uint8_t index) {
-    if(index == COLORMAP_CLASSIC)
-    memcpy(colormap, classic, sizeof(colormap));
 
-    // cmap_loading_lock = true;
-    // if (index == COLORMAP_CLASSIC) {
-    //     memcpy_P(colormap, classic, sizeof(colormap));
-    // }else if (index == COLORMAP_VIRIDIS) {
-    //     memcpy_P(colormap, viridis, sizeof(colormap));
-    // }else if(index == COLORMAP_HOT) {
-    //     memcpy_P(colormap, hot, sizeof(colormap));
-    // }else if(index == COLORMAP_TURBO) {
-    //     memcpy_P(colormap, turbo, sizeof(colormap));
-    // }else if(index == COLORMAP_INFERNO) {
-    //     memcpy_P(colormap, inferno, sizeof(colormap));
-    // }else if(index == COLORMAP_GRAYSR) {
-    //     memcpy_P(colormap, greys_r, sizeof(colormap));
-    // }else if(index == COLORMAP_GRAYS) {
-    //     memcpy_P(colormap, greys, sizeof(colormap));
-    // }else{
-    //     memcpy_P(colormap, classic, sizeof(colormap));
-    // }
-    // cmap_loading_lock = false;
+uint16_t load_colormap(uint8_t colormap, uint8_t index) {
+    uint16_t color_pixel = 0;
+    if(colormap == COLORMAP_CLASSIC) {
+        color_pixel = classic[index];
+    } else if(colormap == COLORMAP_TURBO) {
+        color_pixel = turbo[index];
+    } else if(colormap == COLORMAP_HOT) {
+        color_pixel = hot[index];
+    } else if(colormap == COLORMAP_VIRIDIS) {
+        color_pixel = viridis[index];
+    } else if(colormap == COLORMAP_INFERNO) {
+        color_pixel = inferno[index];
+    } else if(colormap == COLORMAP_GRAYSR) {
+        color_pixel = grays_r[index];
+    } else if(colormap == COLORMAP_GRAYS) {
+        color_pixel = grays[index];
+    } else {
+        color_pixel = classic[index];
+    }
+
+    return color_pixel;
 }
