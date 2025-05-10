@@ -197,7 +197,9 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     }
     
     if(edge_flag) {
-        addWeighted(cam_edge_img, 0.1, fusion_img,0.9, 0, fusion_img);
+        Mat tmp_img;
+        addWeighted(cam_edge_img, 0.4, fusion_img, 0.6, 0, tmp_img);
+        tmp_img.copyTo(fusion_img);
     } 
     // else if(pure_edge_flag) {
     //     addWeighted(cam_edge_img, 0.2, thermal_corrected_img,0.8, 0, fusion_img);
@@ -222,6 +224,7 @@ void* opencv_thread(void *arg){
     // char **argv = ctx->thread_args.argv;
     // printf("opencv_thread!!!\n");
     Mat save_bgr, save_thermal;
+    // setNumThreads(1);
 
     while(!ctx->cmd_req.exit_req){
 

@@ -1623,7 +1623,7 @@ void* thermal_thread(void *arg)
 	free(pixc2_0);
 	pixc2_0 = NULL;
 
-  stop_timer(timer_fd); // 显式取消定时器
+  stop_timer(timer_fd); // 显式取消定时器 很重要！否则CPU高负载运行
 
 	close(timer_fd);
 	close(sensor_fd);
