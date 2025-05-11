@@ -1,3 +1,4 @@
+MAKEFLAGS += -j$(shell nproc)
 
 # 编译器设置
 CC := gcc

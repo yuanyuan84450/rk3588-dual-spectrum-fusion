@@ -1593,15 +1593,16 @@ void* thermal_thread(void *arg)
 
 		if (state)
 		{ // state is 1 when all raw sensor voltages are read for this picture
-			pthread_mutex_lock(&ctx->thermal_buf.mutex); //上锁，处理数据
+			
 
 			sort_data();
 			state = 0;
 			calculate_pixel_temp();
+
+      pthread_mutex_lock(&ctx->thermal_buf.mutex); //上锁，处理数据
 			memcpy(ctx->thermal_buf.thermal_data, data_pixel, sizeof(data_pixel));
 			// float ft_point = (data_pixel[16][16] / 10.0) - 273.15;
 			// printf("data_pixel[16][16] = %.2f\n", ft_point);
-			
 			ctx->thermal_buf.updated = 1;
 			pthread_cond_signal(&ctx->thermal_buf.cond);
 			pthread_mutex_unlock(&ctx->thermal_buf.mutex);	

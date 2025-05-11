@@ -70,12 +70,27 @@ enum protocols {
     PROTOCOL_COUNT
 };
 
+enum  {
+    COLORMAP_CLASSIC,
+    COLORMAP_TURBO,
+    COLORMAP_HOT,
+    COLORMAP_VIRIDIS,
+    COLORMAP_INFERNO,
+    COLORMAP_GRAYSR, // 白热
+    COLORMAP_GRAYS   // 黑热
+}; // 颜色映射表类型
+
+static thread_context_t* ctx = NULL;
+
 static int callback_image(struct lws *wsi, enum lws_callback_reasons reason,
                           void *user, void *in, size_t len)
 {
+    // // 注意：user 是指向 per_session_data 的指针，这里定义为 ctx 指针的指针
+    // thread_context_t **pctx = (thread_context_t **)user;
     switch (reason) {
     case LWS_CALLBACK_ESTABLISHED:
         global_wsi = wsi;
+        *((thread_context_t **)user) = ctx; // 把当前线程的 ctx 保存到 user 中
         break;
     case LWS_CALLBACK_SERVER_WRITEABLE:
         pthread_mutex_lock(&buffer_mutex);
@@ -93,6 +108,26 @@ static int callback_image(struct lws *wsi, enum lws_callback_reasons reason,
         }
         pthread_mutex_unlock(&buffer_mutex);
         break;
+    case LWS_CALLBACK_RECEIVE:
+        ((char *)in)[len] = '\0'; // 确保消息以 null 结尾
+        printf("Received: %s\n", (char *)in);
+    
+        if (strcmp((char *)in, "toggle_yolo") == 0) {
+            if(ctx->cmd_req.yolo_req == 1) ctx->cmd_req.yolo_req = 0;
+            else if(ctx->cmd_req.yolo_req == 0) ctx->cmd_req.yolo_req = 1;
+        } else if (strcmp((char *)in, "toggle_edge") == 0) {
+            if(ctx->cmd_req.edge_req == 1) ctx->cmd_req.edge_req = 0;
+            else if(ctx->cmd_req.edge_req == 0) ctx->cmd_req.edge_req = 1;
+        } else if (strcmp((char *)in, "colormap_next") == 0) {
+            if(ctx->cmd_req.colormap_ctrl == COLORMAP_GRAYS){
+                ctx->cmd_req.colormap_ctrl = COLORMAP_CLASSIC;
+            } else {
+                ctx->cmd_req.colormap_ctrl += 1;
+            }
+            
+        }
+        break;
+    
     default:
         break;
     }
@@ -103,15 +138,17 @@ static struct lws_protocols protocols[] = {
     {
         .name = "image-protocol",
         .callback = callback_image,
-        .per_session_data_size = 0,
+        .per_session_data_size = sizeof(thread_context_t*), // 传 ctx 指针,
         .rx_buffer_size = 0,
     },
     { NULL, NULL, 0, 0 } // terminator
 };
 
+
 void* websocket_thread(void* arg)
 {
-    thread_context_t* ctx = (thread_context_t*)arg;
+    // thread_context_t* ctx = (thread_context_t*)arg;
+    ctx = (thread_context_t*)arg;
     int argc = ctx->thread_args.argc;
     char **argv = ctx->thread_args.argv;
 

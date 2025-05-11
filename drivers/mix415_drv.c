@@ -32,7 +32,8 @@ void* camera_thread(void *arg) {
     char **argv = ctx->thread_args.argv;
 
     const char *device = (argc == 4) ? argv[3] : CAM_DEVICE;
-    int fd = open(device, O_RDWR | O_NONBLOCK);
+    // int fd = open(device, O_RDWR | O_NONBLOCK);
+    int fd = open(device, O_RDWR);
     if (fd == -1) {
         perror("Opening video device failed!");
         return (void*)-1;
@@ -119,6 +120,7 @@ void* camera_thread(void *arg) {
     uint8_t *local_frame_buffer = malloc(frame_size); // 本地拷贝缓冲区
 
     while (!ctx->cmd_req.exit_req) {
+
         fd_set fds;
         FD_ZERO(&fds);
         FD_SET(fd, &fds);
@@ -150,12 +152,14 @@ void* camera_thread(void *arg) {
         buf.m.planes = planes;
 
         if (ioctl(fd, VIDIOC_DQBUF, &buf) == -1) {
+            // perror("Dequeue Buffer failed");
+            // if (++dequeue_fail_count > MAX_DEQUEUE_FAIL) {
+            //     fprintf(stderr, "Dequeue failed too many times, exiting...\n");
+            //     break;
+            // }
+            // continue; //对 V4L2 设备做非阻塞打开后，如果这时 buffer 还没准备好，ioctl(fd, VIDIOC_DQBUF, &buf) 就会立刻返回 -EAGAIN continue 直接跳回去，不会做任何延时，导致 tight‐loop。
             perror("Dequeue Buffer failed");
-            if (++dequeue_fail_count > MAX_DEQUEUE_FAIL) {
-                fprintf(stderr, "Dequeue failed too many times, exiting...\n");
-                break;
-            }
-            continue;
+            break;  // 阻塞模式下一般不会走到这里，直接退出更安全
         }
         dequeue_fail_count = 0;
 
@@ -168,10 +172,13 @@ void* camera_thread(void *arg) {
         pthread_cond_signal(&ctx->yuv_buf.cond);
         pthread_mutex_unlock(&ctx->yuv_buf.mutex);
 
+        // 重新入队
         if (ioctl(fd, VIDIOC_QBUF, &buf) == -1) {
             perror("Requeue Buffer failed");
             break;
         }
+
+        usleep(100);
     }
     
     for (int i = 0; i < req.count; i++) {

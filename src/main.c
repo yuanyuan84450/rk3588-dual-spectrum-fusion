@@ -44,6 +44,11 @@ int main(int argc, char *argv[])
     }
 
     if (pthread_create(&opencv_tid, NULL, opencv_thread, ctx) != 0) {
+        perror("Failed to create opencv_thread");
+        return -1;
+    }
+
+    if (pthread_create(&ws_tid, NULL, websocket_thread, ctx) != 0) {
         perror("Failed to create camera_thread");
         return -1;
     }
@@ -53,21 +58,19 @@ int main(int argc, char *argv[])
         return -1;
     }
     
-    if (pthread_create(&ws_tid, NULL, websocket_thread, ctx) != 0) {
-        perror("Failed to create camera_thread");
-        return -1;
-    }
+
 
     pthread_join(therm_tid, NULL);
     pthread_join(cam_tid, NULL);
     pthread_join(opencv_tid, NULL);
-    pthread_join(cmd_tid, NULL);
     pthread_join(ws_tid, NULL);
+    pthread_join(cmd_tid, NULL);
 
     pthread_mutex_destroy(&ctx->fusion_buf.mutex);
     pthread_cond_destroy(&ctx->fusion_buf.cond);
 
     free(ctx);  // 线程结束后释放内存
     printf("main:资源释放\n");
+
     return 0;
 }
