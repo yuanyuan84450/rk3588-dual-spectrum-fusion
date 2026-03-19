@@ -3,10 +3,6 @@ MAKEFLAGS += -j$(shell nproc)
 # 编译器设置
 CC := gcc
 CXX := g++
-# CFLAGS := -Wall -O2 -Iinclude -Iopencv -Iyolov5 -MMD -MP
-# CXXFLAGS := -Wall -O2 -Iinclude -Iopencv -Iyolov5 -MMD -MP `pkg-config --cflags opencv4`
-# CFLAGS := -Wall -g -Iinclude -Iopencv -Iyolov5 -MMD -MP
-# CXXFLAGS := -Wall -g -Iinclude -Iopencv -Iyolov5 -MMD -MP `pkg-config --cflags opencv4`
 
 # 默认构建模式（可被覆盖）
 BUILD_MODE ?= release
@@ -60,10 +56,10 @@ $(TARGET): $(OBJ)
 # 快捷目标 gdb，用于调试版本编译
 gdb:
 	$(MAKE) BUILD_MODE=debug
-# sudo gdbserver :1234 ./app /dev/i2c-6 /dev/i2c-5 /dev/video11
+# sudo gdbserver :1234 ./app /dev/i2c-5 /dev/i2c-5 /dev/video11
 run:
 	$(MAKE)
-	sudo ./app /dev/i2c-6 /dev/i2c-5 /dev/video11	
+	sudo ./app /dev/i2c-5 /dev/i2c-5 /dev/video11	
 	
 # 清理
 clean:

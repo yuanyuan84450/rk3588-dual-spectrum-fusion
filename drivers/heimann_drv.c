@@ -955,6 +955,7 @@ void sort_data()
    Description:     read one sensor block and change configuration register to next block
                     (also read electrical offset when read_eloffset_next_pic is set)
  *******************************************************************/
+//读取一个传感器数据块，并将配置寄存器切换至下一个数据块
 void readblockinterrupt(int sensor_fd, int timer_fd, uint32_t interval_us)
 {
   // printf("readblockinterrupt_in\n");
@@ -1521,7 +1522,7 @@ void* thermal_thread(void *arg)
 	if (argc < 3)
 	{
 		printf("Wrong use !\n");
-		printf("Usage: %s [sensor-i2c6] [eeprom-i2c5]\n", argv[0]);
+		printf("Usage: %s [sensor-i2c5] [eeprom-i2c5]\n", argv[0]);
 		return (void*)-1;
 	}
 
@@ -1581,6 +1582,7 @@ void* thermal_thread(void *arg)
     }
 
 		// 主循环检查标志位并读取数据
+    // 有点小问题 这样每次都直接进if
 		NewDataAvailable = true; // 用于首次读取
 		if (NewDataAvailable)
 		{
