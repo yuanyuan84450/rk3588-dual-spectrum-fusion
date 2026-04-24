@@ -1,5 +1,8 @@
-#include "opencv2/opencv.hpp"
+#include <pthread.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
 
+#include "opencv2/opencv.hpp"
 #include "opencv_draw.h"
 #include "yolov5_rknn.h"
 #include "websocket_server.h"
@@ -7,10 +10,44 @@
 using namespace cv;
 using namespace std;
 
+#define MAX_SYNC_DIFF_US 50000ULL //50ms 强制类型后缀（Unsigned Long Long）
+
+//用热成像图找最匹配的可见光图
+int find_best_cam_frame(cam_queue_t *q, uint64_t thermal_ts, int *best_idx, uint64_t *best_diff_us) {
+    int found = 0;
+    uint64_t min_diff = UINT64_MAX;
+    int min_idx = -1;
+
+    for (int i = 0; i < CAM_QUEUE_SIZE; i++) {
+        if (!q->frames[i].valid) continue;
+
+        uint64_t cam_ts = q->frames[i].meta.ts_us;
+        uint64_t diff = (cam_ts > thermal_ts) ? (cam_ts - thermal_ts) : (thermal_ts - cam_ts);
+
+        if (diff < min_diff) {
+            min_diff = diff;
+            min_idx = i;
+            found = 1;
+        }
+    }
+
+    if (!found) return -1;
+
+    *best_idx = min_idx;
+    *best_diff_us = min_diff;
+    return 0;
+}
+
+/*static inline uint64_t now_us(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL;
+}*/
 extern void send_fusion_frame(const cv::Mat& fusion_img);
 
 uint8_t colormap = 1;
 uint8_t yolo_flag = 0, edge_flag = 0;
+uint8_t sync_fusion_flag = 0;
 
 struct AdjustParams {
     float shift_x;  // X方向微调（像素）
@@ -256,8 +293,141 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
 
 }
 
+int run_live_fusion(thread_context_t *ctx,
+                    uint8_t *local_yuv,
+                    uint16_t last_thermal[TH_THERMAL_ROWS][TH_THERMAL_COLS],
+                    int *thermal_valid,
+                    size_t frame_size,
+                    cv::Mat &save_bgr,
+                    cv::Mat &save_thermal)
+{
+    struct timespec ts;
+
+    // 1. 非阻塞更新最近热图
+    pthread_mutex_lock(&ctx->thermal_buf.mutex);
+    if (ctx->thermal_buf.updated)
+    {
+        
+        memcpy(last_thermal, ctx->thermal_buf.thermal_data,
+               sizeof(uint16_t) * TH_THERMAL_ROWS * TH_THERMAL_COLS);
+        ctx->thermal_buf.updated = 0;
+        *thermal_valid = 1;
+    }
+    pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+
+    // 2. 等新的可见光
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_nsec += 100000000;
+    if (ts.tv_nsec >= 1000000000)
+    {
+        ts.tv_sec++;
+        ts.tv_nsec -= 1000000000;
+    }
+
+    pthread_mutex_lock(&ctx->yuv_buf.mutex);
+    while (!ctx->yuv_buf.updated)
+    {
+        
+        if (pthread_cond_timedwait(&ctx->yuv_buf.cond, &ctx->yuv_buf.mutex, &ts) == ETIMEDOUT)
+        {
+            
+            pthread_mutex_unlock(&ctx->yuv_buf.mutex);
+            return 0;
+        }
+    }
+    
+    memcpy(local_yuv, ctx->yuv_buf.yuv_data, frame_size);
+    ctx->yuv_buf.updated = 0;
+    pthread_mutex_unlock(&ctx->yuv_buf.mutex);
+
+    if (*thermal_valid)
+    {
+        
+        cv_show_fusion_display(&last_thermal[0][0], local_yuv, save_bgr, save_thermal);
+        
+    }
+
+    return 1;
+}
+
+int try_sync_fusion(thread_context_t *ctx,
+                    uint8_t *local_yuv,
+                    uint16_t local_thermal[TH_THERMAL_ROWS][TH_THERMAL_COLS],
+                    size_t frame_size)
+{
+    struct timespec ts;
+    uint64_t thermal_ts = 0;
+    uint64_t thermal_id = 0;
+    int best_idx = -1;
+    uint64_t best_diff_us = 0;
+    uint64_t cam_id = 0;
+
+    // 1. 等新的热图
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_nsec += 100000000;
+    if (ts.tv_nsec >= 1000000000)
+    {
+        ts.tv_sec++;
+        ts.tv_nsec -= 1000000000;
+    }
+
+    pthread_mutex_lock(&ctx->thermal_buf.mutex);
+    while (!ctx->thermal_buf.updated)
+    {
+        if (pthread_cond_timedwait(&ctx->thermal_buf.cond, &ctx->thermal_buf.mutex, &ts) == ETIMEDOUT)
+        {
+            pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+            return 0;
+        }
+    }
+
+    memcpy(local_thermal, ctx->thermal_buf.thermal_data,
+           sizeof(uint16_t) * TH_THERMAL_ROWS * TH_THERMAL_COLS);
+    thermal_ts = ctx->thermal_buf.meta.ts_us;
+    thermal_id = ctx->thermal_buf.meta.frame_id;
+    ctx->thermal_buf.updated = 0;
+    pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+
+    // 2. 找最近可见光
+    pthread_mutex_lock(&ctx->cam_queue.mutex);
+
+    if (find_best_cam_frame(&ctx->cam_queue, thermal_ts, &best_idx, &best_diff_us) != 0)
+    {
+        pthread_mutex_unlock(&ctx->cam_queue.mutex);
+        return 0;
+    }
+
+    if (best_diff_us > MAX_SYNC_DIFF_US)
+    {
+        pthread_mutex_unlock(&ctx->cam_queue.mutex);
+        return 0;
+    }
+
+    memcpy(local_yuv, ctx->cam_queue.frames[best_idx].data, frame_size);
+    cam_id = ctx->cam_queue.frames[best_idx].meta.frame_id;
+
+    pthread_mutex_unlock(&ctx->cam_queue.mutex);
+
+    /*printf("[SYNC] thermal_id=%llu cam_id=%llu diff=%.2f ms\n",
+           (unsigned long long)thermal_id,
+           (unsigned long long)cam_id,
+           best_diff_us / 1000.0); */
+
+    return 1;
+}
 
 void* opencv_thread(void *arg){
+
+    static uint16_t last_thermal[TH_THERMAL_ROWS][TH_THERMAL_COLS];
+    static int thermal_valid = 0;
+    size_t frame_size = MIX_WIDTH * MIX_HEIGHT * 3 / 2;
+    static uint8_t *local_yuv = (uint8_t *)malloc(frame_size);
+    static uint16_t local_thermal[TH_THERMAL_ROWS][TH_THERMAL_COLS];
+
+    pthread_setname_np(pthread_self(), "opencv");
+    pid_t tid = syscall(SYS_gettid);
+    printf("opencv_thread start, tid=%d\n", tid);
+
     thread_context_t* ctx = (thread_context_t*)arg;
     // int argc = ctx->thread_args.argc;
     // char **argv = ctx->thread_args.argv;
@@ -276,89 +446,194 @@ void* opencv_thread(void *arg){
     K_vis = estimate_intrinsic_matrix(640, 360, fov_vis);
 
     struct timespec ts;
-    while(!ctx->cmd_req.exit_req){
-        // 设置100ms超时,似乎解决了问题
-        clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_nsec += 100000000;
-        if (ts.tv_nsec >= 1000000000) {
-            ts.tv_sec++;
-            ts.tv_nsec -= 1000000000;
-        }
+    // while(!ctx->cmd_req.exit_req){
+    //     // 设置100ms超时,似乎解决了问题
+    //     clock_gettime(CLOCK_REALTIME, &ts);
+    //     ts.tv_nsec += 100000000;
+    //     if (ts.tv_nsec >= 1000000000) {
+    //         ts.tv_sec++;
+    //         ts.tv_nsec -= 1000000000;
+    //     }
+    //     //新增
+    //     uint64_t thermal_ts = 0;
+    //     uint64_t thermal_id = 0;
 
-        pthread_mutex_lock(&ctx->thermal_buf.mutex);
-        while (!ctx->thermal_buf.updated) {
-            if (pthread_cond_timedwait(&ctx->thermal_buf.cond, &ctx->thermal_buf.mutex, &ts) == ETIMEDOUT) {
-                pthread_mutex_unlock(&ctx->thermal_buf.mutex);
-                continue;
-            }
-        }
-        pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+    //     pthread_mutex_lock(&ctx->thermal_buf.mutex);
+    //     while (!ctx->thermal_buf.updated) {
+    //         if (pthread_cond_timedwait(&ctx->thermal_buf.cond, &ctx->thermal_buf.mutex, &ts) == ETIMEDOUT) {
+    //             pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+    //             usleep(1000);
+    //             continue;
+    //         }
+    //     }
 
-        pthread_mutex_lock(&ctx->yuv_buf.mutex);
-        while (!ctx->yuv_buf.updated) {
-            if (pthread_cond_timedwait(&ctx->yuv_buf.cond, &ctx->yuv_buf.mutex, &ts) == ETIMEDOUT) {
-                pthread_mutex_unlock(&ctx->yuv_buf.mutex);
-                continue;
-            }
-        }
-        pthread_mutex_unlock(&ctx->yuv_buf.mutex);
+    //     memcpy(local_thermal, ctx->thermal_buf.thermal_data, sizeof(local_thermal));
+    //     thermal_ts = ctx->thermal_buf.meta.ts_us;
+    //     thermal_id = ctx->thermal_buf.meta.frame_id;
+    //     ctx->thermal_buf.updated = 0;
 
-        // size_t frame_size = MIX_WIDTH * MIX_HEIGHT * 3 / 2;
-        // static uint8_t* local_yuv = (uint8_t*)malloc(frame_size);
-        // pthread_mutex_lock(&ctx->yuv_buf.mutex);
-        // while (!ctx->yuv_buf.updated) {
-        //     pthread_cond_wait(&ctx->yuv_buf.cond, &ctx->yuv_buf.mutex);
-        // }
-        // // 拷贝数据
-        // memcpy(local_yuv, ctx->yuv_buf.yuv_data, frame_size);
-        // ctx->yuv_buf.updated = 0;
-        // pthread_mutex_unlock(&ctx->yuv_buf.mutex);
+    //     pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+    //     int best_idx = -1;
+    //     uint64_t best_diff_us = 0;
+    //     uint64_t cam_id = 0;
+    //     uint64_t cam_ts = 0;
 
-        // static uint16_t local_thermal[TH_THERMAL_ROWS][TH_THERMAL_COLS];
-        // pthread_mutex_lock(&ctx->thermal_buf.mutex);
-        // while (!ctx->thermal_buf.updated) {
-        //     pthread_cond_wait(&ctx->thermal_buf.cond, &ctx->thermal_buf.mutex);
-        // }
-        // memcpy(local_thermal, ctx->thermal_buf.thermal_data, sizeof(local_thermal));
-        // ctx->thermal_buf.updated = 0;
-        // pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+    //     pthread_mutex_lock(&ctx->cam_queue.mutex);
+
+    //     if (find_best_cam_frame(&ctx->cam_queue, thermal_ts, &best_idx, &best_diff_us) != 0)
+    //     {
+    //         pthread_mutex_unlock(&ctx->cam_queue.mutex);
+    //         usleep(1000);
+    //         continue;
+    //     }
+
+    //     if (best_diff_us > MAX_SYNC_DIFF_US)
+    //     {
+    //         printf("[SYNC] no good match: thermal_id=%llu thermal_ts=%llu diff=%.2f ms\n",
+    //                (unsigned long long)thermal_id,
+    //                (unsigned long long)thermal_ts,
+    //                best_diff_us / 1000.0);
+    //         pthread_mutex_unlock(&ctx->cam_queue.mutex);
+    //         usleep(1000);
+    //         continue;
+    //     }
+
+    //     memcpy(local_yuv, ctx->cam_queue.frames[best_idx].data, frame_size);
+    //     cam_id = ctx->cam_queue.frames[best_idx].meta.frame_id;
+    //     cam_ts = ctx->cam_queue.frames[best_idx].meta.ts_us;
+
+    //     pthread_mutex_unlock(&ctx->cam_queue.mutex);
+
+    //     printf("[SYNC] thermal_id=%llu cam_id=%llu diff=%.2f ms\n",
+    //            (unsigned long long)thermal_id,
+    //            (unsigned long long)cam_id,
+    //            best_diff_us / 1000.0);
+    //     /*
+    //     pthread_mutex_lock(&ctx->thermal_buf.mutex);
+    //     while (!ctx->thermal_buf.updated) {
+    //         if (pthread_cond_timedwait(&ctx->thermal_buf.cond, &ctx->thermal_buf.mutex, &ts) == ETIMEDOUT) {
+    //             pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+    //             continue;
+    //         }
+    //     }
+    //     pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+    //     */
+
+    //     //最新更改
+    //     /*pthread_mutex_lock(&ctx->yuv_buf.mutex);
+    //     while (!ctx->yuv_buf.updated) {
+    //         if (pthread_cond_timedwait(&ctx->yuv_buf.cond, &ctx->yuv_buf.mutex, &ts) == ETIMEDOUT) {
+    //             pthread_mutex_unlock(&ctx->yuv_buf.mutex);
+    //             continue;
+    //         }
+    //     }
+    //     pthread_mutex_unlock(&ctx->yuv_buf.mutex);*/
+
+    //     // size_t frame_size = MIX_WIDTH * MIX_HEIGHT * 3 / 2;
+    //     // static uint8_t* local_yuv = (uint8_t*)malloc(frame_size);
+    //     // pthread_mutex_lock(&ctx->yuv_buf.mutex);
+    //     // while (!ctx->yuv_buf.updated) {
+    //     //     pthread_cond_wait(&ctx->yuv_buf.cond, &ctx->yuv_buf.mutex);
+    //     // }
+    //     // // 拷贝数据
+    //     // memcpy(local_yuv, ctx->yuv_buf.yuv_data, frame_size);
+    //     // ctx->yuv_buf.updated = 0;
+    //     // pthread_mutex_unlock(&ctx->yuv_buf.mutex);
+
+    //     // static uint16_t local_thermal[TH_THERMAL_ROWS][TH_THERMAL_COLS];
+    //     // pthread_mutex_lock(&ctx->thermal_buf.mutex);
+    //     // while (!ctx->thermal_buf.updated) {
+    //     //     pthread_cond_wait(&ctx->thermal_buf.cond, &ctx->thermal_buf.mutex);
+    //     // }
+    //     // memcpy(local_thermal, ctx->thermal_buf.thermal_data, sizeof(local_thermal));
+    //     // ctx->thermal_buf.updated = 0;
+    //     // pthread_mutex_unlock(&ctx->thermal_buf.mutex);
 
 
-        pthread_mutex_lock(&ctx->fusion_buf.mutex);
-        // printf("opencv!!!\n");
-        // draw_roi_frame(ctx->yuv_buf.yuv_data);
-        // cv_show_heimann_classic(&ctx->thermal_buf.thermal_data[0][0]);
+    //     pthread_mutex_lock(&ctx->yuv_buf.mutex);
+    //     // printf("opencv!!!\n");
+    //     // draw_roi_frame(ctx->yuv_buf.yuv_data);
+    //     // cv_show_heimann_classic(&ctx->thermal_buf.thermal_data[0][0]);
+    //     colormap = uint8_t(ctx->cmd_req.colormap_ctrl);
+    //     yolo_flag = uint8_t(ctx->cmd_req.yolo_req);
+    //     edge_flag = uint8_t(ctx->cmd_req.edge_req);
+    //     sync_fusion_flag = uint8_t(ctx->cmd_req.sync_req);
+    //     // printf("colomap: %d\n", colormap);
+    //     //增加
+    //     static uint64_t proc_last_print = 0;
+    //     static int proc_fps_cnt = 0;
+
+    //     if (proc_last_print == 0) proc_last_print = now_us();
+
+    //     uint64_t proc_begin = now_us();
+    //     proc_fps_cnt++;
+
+    //     if (proc_begin - proc_last_print >= 1000000ULL) {
+    //         printf("[PROC] fps=%d\n", proc_fps_cnt);
+    //         proc_fps_cnt = 0;
+    //         proc_last_print = proc_begin;
+    //     }
+    //     //
+    //     uint64_t proc_t0 = now_us();
+    //     cv_show_fusion_display(&local_thermal[0][0], local_yuv, save_bgr, save_thermal);
+    //     // cv_show_fusion_display(&ctx->thermal_buf.thermal_data[0][0], ctx->yuv_buf.yuv_data, save_bgr, save_thermal);
+    //     // cv_show_fusion_display(&local_thermal[0][0], local_yuv, save_bgr, save_thermal);
+    //     uint64_t proc_t1 = now_us();
+    //     //printf("opencv处理时间 = %.3f ms\n", (proc_t1 - proc_t0) / 1000.0);
+
+    //     if (ctx->cmd_req.snapshot_request) {
+    //         // 保存热成像和可见光图像
+    //         static int snapshot_count = 0;
+    //         char filename_rgb[128];
+    //         char filename_thermal[128];
+    //         snprintf(filename_rgb, sizeof(filename_rgb), "snapshot_rgb_%d.png", snapshot_count);
+    //         snprintf(filename_thermal, sizeof(filename_thermal), "snapshot_thermal_%d.png", snapshot_count);
+        
+    //         // 保存
+    //         imwrite(filename_rgb, save_bgr);
+    //         imwrite(filename_thermal, save_thermal);
+        
+    //         printf("Saved snapshot %d\n", snapshot_count);
+    //         snapshot_count++;
+    //         if (snapshot_count >= 4) {
+    //             printf("Already captured 4 snapshots, ignoring further requests.\n");
+    //         }
+        
+    //         ctx->cmd_req.snapshot_request = 0; // 重置请求标志
+    //     }
+
+    //     pthread_mutex_unlock(&ctx->yuv_buf.mutex);
+    //     usleep(1000);
+    // }
+    
+    while (!ctx->cmd_req.exit_req)
+    {
+
         colormap = uint8_t(ctx->cmd_req.colormap_ctrl);
         yolo_flag = uint8_t(ctx->cmd_req.yolo_req);
         edge_flag = uint8_t(ctx->cmd_req.edge_req);
+        sync_fusion_flag = uint8_t(ctx->cmd_req.sync_req);
 
-        // printf("colomap: %d\n", colormap);
-        cv_show_fusion_display(&ctx->thermal_buf.thermal_data[0][0], ctx->yuv_buf.yuv_data, save_bgr, save_thermal);
-        // cv_show_fusion_display(&local_thermal[0][0], local_yuv, save_bgr, save_thermal);
-
-
-        if (ctx->cmd_req.snapshot_request) {
-            // 保存热成像和可见光图像
-            static int snapshot_count = 0;
-            char filename_rgb[128];
-            char filename_thermal[128];
-            snprintf(filename_rgb, sizeof(filename_rgb), "snapshot_rgb_%d.png", snapshot_count);
-            snprintf(filename_thermal, sizeof(filename_thermal), "snapshot_thermal_%d.png", snapshot_count);
         
-            // 保存
-            imwrite(filename_rgb, save_bgr);
-            imwrite(filename_thermal, save_thermal);
-        
-            printf("Saved snapshot %d\n", snapshot_count);
-            snapshot_count++;
-            if (snapshot_count >= 4) {
-                printf("Already captured 4 snapshots, ignoring further requests.\n");
+        if (sync_fusion_flag)
+        {
+            
+            int sync_ok = try_sync_fusion(ctx, local_yuv, local_thermal, frame_size);
+            
+            if (sync_ok)
+            {
+                cv_show_fusion_display(&local_thermal[0][0], local_yuv, save_bgr, save_thermal);
+                usleep(1000);
+                continue;
             }
-        
-            ctx->cmd_req.snapshot_request = 0; // 重置请求标志
+            
         }
+        
 
-        pthread_mutex_unlock(&ctx->fusion_buf.mutex);
+        
+        run_live_fusion(ctx, local_yuv, last_thermal, &thermal_valid, frame_size, save_bgr, save_thermal);
+        
+        usleep(1000);
     }
 
     cv::destroyAllWindows();    

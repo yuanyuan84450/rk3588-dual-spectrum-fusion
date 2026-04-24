@@ -4,7 +4,12 @@
 #include <opencv2/opencv.hpp>
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+
 #include "public_cfg.h"
+
 
 #define MAX_FRAME_SIZE (1024 * 1024)  // 1MB 图像缓冲区
 static uint8_t image_buffer[MAX_FRAME_SIZE];
@@ -126,6 +131,18 @@ static int callback_image(struct lws *wsi, enum lws_callback_reasons reason,
             }
             
         }
+        else if (strncmp((char *)in, "sync-req=", 9) == 0) {
+            // 提取等号后面的数字 (1 或 0)
+            int req_val = atoi((char *)in + 9); 
+            
+            // 安全校验：只接受 0 或 1
+            if (req_val == 0 || req_val == 1) {
+                ctx->cmd_req.sync_req = req_val;
+                printf("Fusion state updated: %d\n", req_val);
+            } else {
+                printf("Invalid sync-req value: %d\n", req_val);
+            }
+        }
         break;
     
     default:
@@ -147,6 +164,11 @@ static struct lws_protocols protocols[] = {
 
 void* websocket_thread(void* arg)
 {
+
+    pthread_setname_np(pthread_self(), "websocket");
+    pid_t tid = syscall(SYS_gettid);
+    printf("websocket_thread start, tid=%d\n", tid);
+
     // thread_context_t* ctx = (thread_context_t*)arg;
     ctx = (thread_context_t*)arg;
     int argc = ctx->thread_args.argc;
@@ -163,11 +185,12 @@ void* websocket_thread(void* arg)
         return NULL;
     }
 
-    while (!ctx->cmd_req.exit_req) {
+    while(!ctx->cmd_req.exit_req) {
         lws_service(context, 50);
         if (global_wsi) {
             lws_callback_on_writable(global_wsi);
         }
+        usleep(1000);
     }
 
     pthread_mutex_destroy(&buffer_mutex);
@@ -178,6 +201,7 @@ void* websocket_thread(void* arg)
 
 void send_fusion_frame(const cv::Mat& fusion_img)
 {
+    
     std::vector<uchar> buf;
     cv::imencode(".jpg", fusion_img, buf);
 

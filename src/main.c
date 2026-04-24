@@ -19,10 +19,24 @@
 #include "opencv_draw.h"
 #include "websocket_server.h"
 #include "cmd_shell.h"
-
+size_t frame_size = MIX_WIDTH * MIX_HEIGHT * 3 / 2;
+//测试一下传输文件好不好用
 int main(int argc, char *argv[]) 
 {
-    thread_context_t *ctx = malloc(sizeof(thread_context_t));
+    //thread_context_t *ctx = malloc(sizeof(thread_context_t));
+
+    thread_context_t *ctx = NULL;
+    if (thread_context_init(&ctx) != 0) {
+        fprintf(stderr, "Fatal: Failed to init thread context\n");
+        return -1;
+    }
+    
+    if (init_cam_queue(&ctx->cam_queue, frame_size) != 0) {
+        fprintf(stderr, "Fatal: Failed to init cam queue\n");
+        thread_context_destroy(ctx);
+        return -1;
+    }
+
     ctx->thread_args.argc = argc;
     ctx->thread_args.argv = argv;
 
@@ -66,11 +80,14 @@ int main(int argc, char *argv[])
     pthread_join(ws_tid, NULL);
     pthread_join(cmd_tid, NULL);
 
-    pthread_mutex_destroy(&ctx->fusion_buf.mutex);
-    pthread_cond_destroy(&ctx->fusion_buf.cond);
+    destroy_cam_queue(&ctx->cam_queue);
+    thread_context_destroy(ctx);
 
-    free(ctx);  // 线程结束后释放内存
-    printf("main:资源释放\n");
+    //pthread_mutex_destroy(&ctx->fusion_buf.mutex);
+    //pthread_cond_destroy(&ctx->fusion_buf.cond);
+
+    //free(ctx);  // 线程结束后释放内存
+    //printf("main:资源释放\n");
 
     return 0;
 }

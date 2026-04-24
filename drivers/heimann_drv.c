@@ -1,14 +1,22 @@
 // #include <heimann_reg.h>
 #include <signal.h>
 #include <time.h>
-// #include <linux/time.h>
+//#include <linux/time.h>
 #include <poll.h>
 #include <sys/timerfd.h>
 #include <sys/types.h>
-
+#include <pthread.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
 #include "heimann_drv.h"
 #include "opencv_draw.h"
 #include "public_cfg.h"
+
+/*static inline uint64_t now_us(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL;
+}*/
 
 mlx_characteristics_t DevConst = {
     .NumberOfPixel = NUMBER_OF_PIXEL,
@@ -955,7 +963,6 @@ void sort_data()
    Description:     read one sensor block and change configuration register to next block
                     (also read electrical offset when read_eloffset_next_pic is set)
  *******************************************************************/
-//读取一个传感器数据块，并将配置寄存器切换至下一个数据块
 void readblockinterrupt(int sensor_fd, int timer_fd, uint32_t interval_us)
 {
   // printf("readblockinterrupt_in\n");
@@ -1427,7 +1434,7 @@ void print_eeprom_header() {
 //     }
 
 // }
-
+//红外传感器的I2C 连接探测与确认函数
 int connect_sensor(int fd)
 {
 	int error;
@@ -1456,8 +1463,11 @@ int connect_sensor(int fd)
 	return 0;
 }
 
+//核心初始化总入口，整合了 “内存分配、传感器连接校验、
+//EEPROM 校准参数读取、传感器硬件唤醒 / 配置、校准参数写入、前置计算” 等全流程
 int sensor_init(int sensor_fd, int eeprom_fd)
 {
+  // 步骤1：为像素常数PixC分配堆内存（核心数据载体）
 	pixc2_0 = (uint32_t *)malloc(NUMBER_OF_PIXEL * 4);
 	if (pixc2_0 == NULL)
 	{
@@ -1472,10 +1482,14 @@ int sensor_init(int sensor_fd, int eeprom_fd)
 	//*******************************************************************
 	// searching for sensor; if connected: read the whole EEPROM
 	//*******************************************************************
-	connect_sensor(sensor_fd);
+  // 步骤2：前置校验——确保传感器I2C通信正常
+	connect_sensor(sensor_fd);//测试iic连接状态
 
+  // 步骤3：更新驱动状态机——标记“初始化中”
 	prob_status = PROB_INITIALIZING; // 探头连接状态
 
+  // 步骤4：读取EEPROM中所有校准参数（核心配置）
+  // 读取pixcmin/mbit_calib/clk_calib等参数到全局变量
 	read_eeprom(eeprom_fd);
 
 	//*******************************************************************
@@ -1484,14 +1498,19 @@ int sensor_init(int sensor_fd, int eeprom_fd)
 	// to wake up sensor set configuration register to 0x01
 	// |    RFU    |   Block   | Start | VDD_MEAS | BLIND | WAKEUP |
 	// |  0  |  0  |  0  |  0  |   0   |    0     |   0   |    1   |
+  // 步骤5：硬件唤醒——向传感器配置寄存器写入0x01，唤醒传感器
 	write_sensor_byte(sensor_fd, CONFIGURATION_REGISTER, 0x01);
 	// write the calibration settings into the trim registers
+  // 步骤6：写入校准参数到传感器TRIM寄存器
 	write_calibration_settings_to_sensor(sensor_fd);
 	// to start sensor set configuration register to 0x09
 	// |    RFU    |   Block   | Start | VDD_MEAS | BLIND | WAKEUP |
 	// |  0  |  0  |  0  |  0  |   1   |    0     |   0   |    1   |
+  // 步骤7：硬件启动——向配置寄存器写入0x09，启动传感器采集
 	write_sensor_byte(sensor_fd, CONFIGURATION_REGISTER, 0x09);
 	printf("HTPAd is ready\n");
+
+  // 步骤8：更新驱动状态机——标记“初始化完成/准备中”
 	prob_status = PROB_PREPARING;
 
 	//*******************************************************************
@@ -1500,6 +1519,7 @@ int sensor_init(int sensor_fd, int eeprom_fd)
 	gradscale_div = pow(2, gradscale);
 	vddscgrad_div = pow(2, vddscgrad);
 	vddscoff_div = pow(2, vddscoff);
+  // 步骤10：计算每个像素的灵敏度常数PixC（温度计算核心）
 	calcPixC(); // calculate the pixel constants
 
 	return 0;
@@ -1508,6 +1528,16 @@ int sensor_init(int sensor_fd, int eeprom_fd)
 // 更新传感器画面
 void* thermal_thread(void *arg)
 {
+
+  static uint64_t thermal_frame_id = 0;
+  static uint64_t thermal_last_frame_ts = 0;
+  static uint64_t thermal_last_print_ts = 0;
+  static int thermal_fps_cnt = 0;
+
+  pthread_setname_np(pthread_self(), "thermal");
+  pid_t tid = syscall(SYS_gettid);
+  printf("thermal_thread start, tid=%d\n", tid);
+
 	thread_context_t* ctx = (thread_context_t*)arg;
 	int argc = ctx->thread_args.argc;
 	char **argv = ctx->thread_args.argv;
@@ -1562,7 +1592,7 @@ void* thermal_thread(void *arg)
 	fds.fd = timer_fd;
 	fds.events = POLLIN;
 
-	while (!ctx->cmd_req.exit_req)
+	while(!ctx->cmd_req.exit_req)
 	{
     ret = poll(&fds, 1, -1); // 阻塞直到定时器事件发生
     if (ret > 0)
@@ -1582,24 +1612,54 @@ void* thermal_thread(void *arg)
     }
 
 		// 主循环检查标志位并读取数据
-    // 有点小问题 这样每次都直接进if
 		NewDataAvailable = true; // 用于首次读取
 		if (NewDataAvailable)
 		{
 			// 在这里放读取传感器数据的代码
+      uint64_t t_block0 = now_us();
 			readblockinterrupt(sensor_fd, timer_fd, timert);
+      uint64_t t_block1 = now_us();
+      /*printf("[THERMAL] one block cycle cost = %.2f ms\n",
+        (t_block1 - t_block0) / 1000.0);*/
 			NewDataAvailable = 0;
 			// printf("readblockinterrupt\n");
 			usleep(1000);
 		}
 
+    /*
 		if (state)
 		{ // state is 1 when all raw sensor voltages are read for this picture
 			
-
-			sort_data();
+      uint64_t t_sort0 = now_us();
+			sort_data(); //把已经读好的原始块数据“拼成一张热图所需的数据结构”
+      uint64_t t_sort1 = now_us();
+      printf("拼成一张热图所需时间 = %.2f ms\n",
+        (t_sort1 - t_sort0) / 1000.0);
 			state = 0;
-			calculate_pixel_temp();
+
+      uint64_t t_calc0 = now_us();
+			calculate_pixel_temp(); //整幅热成像的温度计算和补偿
+      uint64_t t_calc1 = now_us();
+      printf("温度补偿所需时间 = %.2f ms\n",
+        (t_calc1 - t_calc0) / 1000.0);
+
+      uint64_t thermal_ts = now_us();
+
+      if (thermal_last_frame_ts != 0) {
+          printf("热成像两帧间隔 = %.2f ms\n",
+            (thermal_ts - thermal_last_frame_ts) / 1000.0);
+      }
+      thermal_last_frame_ts = thermal_ts;
+
+      if (thermal_last_print_ts == 0)
+          thermal_last_print_ts = thermal_ts;
+
+      thermal_fps_cnt++;
+      if (thermal_ts - thermal_last_print_ts >= 1000000ULL) {
+          printf("[THERMAL] fps=%d\n", thermal_fps_cnt);
+          thermal_fps_cnt = 0;
+          thermal_last_print_ts = thermal_ts;
+      }
 
       pthread_mutex_lock(&ctx->thermal_buf.mutex); //上锁，处理数据
 			memcpy(ctx->thermal_buf.thermal_data, data_pixel, sizeof(data_pixel));
@@ -1609,6 +1669,24 @@ void* thermal_thread(void *arg)
 			pthread_cond_signal(&ctx->thermal_buf.cond);
 			pthread_mutex_unlock(&ctx->thermal_buf.mutex);	
 		}
+      */
+
+    if (state)
+    {
+      sort_data();
+      state = 0;
+      calculate_pixel_temp();
+
+      uint64_t thermal_ts = now_us();
+
+      pthread_mutex_lock(&ctx->thermal_buf.mutex);
+      memcpy(ctx->thermal_buf.thermal_data, data_pixel, sizeof(data_pixel));
+      ctx->thermal_buf.meta.frame_id = ++thermal_frame_id;
+      ctx->thermal_buf.meta.ts_us = thermal_ts;
+      ctx->thermal_buf.updated = 1;
+      pthread_cond_signal(&ctx->thermal_buf.cond);
+      pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+    }
 
     if(ctx->cmd_req.print_eeprom_header_req){
       print_eeprom_header();

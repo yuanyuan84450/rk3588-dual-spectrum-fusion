@@ -7,15 +7,20 @@
 #include <pthread.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <pthread.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
 
 #include "public_cfg.h"
 #include "heimann_drv.h"
 
+//指针数组  数组里都是指针
 const char* commands[] = {
     "heimann-snap", "heimann-header", "heimann-hex",
     "color-classic", "color-turbo", "color-hot", "color-viridis",
     "color-inferno", "color-graysr", "color-grays", 
     "yolo-req=0", "yolo-req=1", "edge-req=0", "edge-req=1",
+    "sync-req=0", "sync-req=1",
     "exit",
     NULL
 };
@@ -46,11 +51,17 @@ char** command_completion(const char* text, int start, int end) {
 }
 
 void* cmd_thread(void *arg) {
+
+    pthread_setname_np(pthread_self(), "websocket");
+    pid_t tid = syscall(SYS_gettid);
+    printf("websocket_thread start, tid=%d\n", tid);
+
+
     thread_context_t* ctx = (thread_context_t*)arg;
 
     rl_attempted_completion_function = command_completion;
 
-    while (!ctx->cmd_req.exit_req) {
+    while(!ctx->cmd_req.exit_req) {
         // char* input = readline(">> ");  // 自动刷新提示符
         char* input = readline("\033[1;33m>> \033[0m");
 
@@ -95,7 +106,15 @@ void* cmd_thread(void *arg) {
         } else if (strncmp(input, "edge-req=1", 10) == 0) {
             ctx->cmd_req.edge_req = 1;
         }
-        
+        else if (strncmp(input, "sync-req=0", 10) == 0)
+        {
+            ctx->cmd_req.sync_req = 0;
+        }
+        else if (strncmp(input, "sync-req=1", 10) == 0)
+        {
+            ctx->cmd_req.sync_req = 1;
+        }
+        usleep(1000);
 
         free(input);  // readline 分配了内存，记得释放
     }
