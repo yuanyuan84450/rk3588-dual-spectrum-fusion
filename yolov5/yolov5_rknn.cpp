@@ -132,7 +132,7 @@ std::vector<uint8_t> load_model(const std::string& filename) {
 
 int yolov5_detect(const cv::Mat& roi_img, cv::Mat& yolo_img) {
     //const char* model_path = "./yolov5/yolov5n.rknn";
-    const char* model_path = "/home/cat/project/yolov5/yolov5n.rknn"; //绝对路径
+    const char* model_path = "/home/cat/project_clean/yolov5/yolov5n.rknn"; //绝对路径
     const char* image_path = "./snapshot_rgb_0.png";
     rknn_context ctx;
 
