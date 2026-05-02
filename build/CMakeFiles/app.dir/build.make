@@ -62,10 +62,10 @@ RM = /usr/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/cat/project
+CMAKE_SOURCE_DIR = /home/cat/project_clean
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/cat/project/build
+CMAKE_BINARY_DIR = /home/cat/project_clean/build
 
 # Include any dependencies generated for this target.
 include CMakeFiles/app.dir/depend.make
@@ -78,159 +78,159 @@ include CMakeFiles/app.dir/flags.make
 
 CMakeFiles/app.dir/drivers/cmd_shell.c.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/drivers/cmd_shell.c.o: ../drivers/cmd_shell.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building C object CMakeFiles/app.dir/drivers/cmd_shell.c.o"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/cmd_shell.c.o -c /home/cat/project/drivers/cmd_shell.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building C object CMakeFiles/app.dir/drivers/cmd_shell.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/cmd_shell.c.o -c /home/cat/project_clean/drivers/cmd_shell.c
 
 CMakeFiles/app.dir/drivers/cmd_shell.c.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/app.dir/drivers/cmd_shell.c.i"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project/drivers/cmd_shell.c > CMakeFiles/app.dir/drivers/cmd_shell.c.i
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project_clean/drivers/cmd_shell.c > CMakeFiles/app.dir/drivers/cmd_shell.c.i
 
 CMakeFiles/app.dir/drivers/cmd_shell.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/app.dir/drivers/cmd_shell.c.s"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project/drivers/cmd_shell.c -o CMakeFiles/app.dir/drivers/cmd_shell.c.s
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project_clean/drivers/cmd_shell.c -o CMakeFiles/app.dir/drivers/cmd_shell.c.s
 
 CMakeFiles/app.dir/drivers/colormap.c.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/drivers/colormap.c.o: ../drivers/colormap.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building C object CMakeFiles/app.dir/drivers/colormap.c.o"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/colormap.c.o -c /home/cat/project/drivers/colormap.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building C object CMakeFiles/app.dir/drivers/colormap.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/colormap.c.o -c /home/cat/project_clean/drivers/colormap.c
 
 CMakeFiles/app.dir/drivers/colormap.c.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/app.dir/drivers/colormap.c.i"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project/drivers/colormap.c > CMakeFiles/app.dir/drivers/colormap.c.i
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project_clean/drivers/colormap.c > CMakeFiles/app.dir/drivers/colormap.c.i
 
 CMakeFiles/app.dir/drivers/colormap.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/app.dir/drivers/colormap.c.s"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project/drivers/colormap.c -o CMakeFiles/app.dir/drivers/colormap.c.s
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project_clean/drivers/colormap.c -o CMakeFiles/app.dir/drivers/colormap.c.s
 
 CMakeFiles/app.dir/drivers/fusion.c.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/drivers/fusion.c.o: ../drivers/fusion.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building C object CMakeFiles/app.dir/drivers/fusion.c.o"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/fusion.c.o -c /home/cat/project/drivers/fusion.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building C object CMakeFiles/app.dir/drivers/fusion.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/fusion.c.o -c /home/cat/project_clean/drivers/fusion.c
 
 CMakeFiles/app.dir/drivers/fusion.c.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/app.dir/drivers/fusion.c.i"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project/drivers/fusion.c > CMakeFiles/app.dir/drivers/fusion.c.i
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project_clean/drivers/fusion.c > CMakeFiles/app.dir/drivers/fusion.c.i
 
 CMakeFiles/app.dir/drivers/fusion.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/app.dir/drivers/fusion.c.s"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project/drivers/fusion.c -o CMakeFiles/app.dir/drivers/fusion.c.s
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project_clean/drivers/fusion.c -o CMakeFiles/app.dir/drivers/fusion.c.s
 
 CMakeFiles/app.dir/drivers/heimann_drv.c.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/drivers/heimann_drv.c.o: ../drivers/heimann_drv.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building C object CMakeFiles/app.dir/drivers/heimann_drv.c.o"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/heimann_drv.c.o -c /home/cat/project/drivers/heimann_drv.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building C object CMakeFiles/app.dir/drivers/heimann_drv.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/heimann_drv.c.o -c /home/cat/project_clean/drivers/heimann_drv.c
 
 CMakeFiles/app.dir/drivers/heimann_drv.c.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/app.dir/drivers/heimann_drv.c.i"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project/drivers/heimann_drv.c > CMakeFiles/app.dir/drivers/heimann_drv.c.i
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project_clean/drivers/heimann_drv.c > CMakeFiles/app.dir/drivers/heimann_drv.c.i
 
 CMakeFiles/app.dir/drivers/heimann_drv.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/app.dir/drivers/heimann_drv.c.s"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project/drivers/heimann_drv.c -o CMakeFiles/app.dir/drivers/heimann_drv.c.s
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project_clean/drivers/heimann_drv.c -o CMakeFiles/app.dir/drivers/heimann_drv.c.s
 
 CMakeFiles/app.dir/drivers/heimann_inter.c.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/drivers/heimann_inter.c.o: ../drivers/heimann_inter.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building C object CMakeFiles/app.dir/drivers/heimann_inter.c.o"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/heimann_inter.c.o -c /home/cat/project/drivers/heimann_inter.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building C object CMakeFiles/app.dir/drivers/heimann_inter.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/heimann_inter.c.o -c /home/cat/project_clean/drivers/heimann_inter.c
 
 CMakeFiles/app.dir/drivers/heimann_inter.c.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/app.dir/drivers/heimann_inter.c.i"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project/drivers/heimann_inter.c > CMakeFiles/app.dir/drivers/heimann_inter.c.i
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project_clean/drivers/heimann_inter.c > CMakeFiles/app.dir/drivers/heimann_inter.c.i
 
 CMakeFiles/app.dir/drivers/heimann_inter.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/app.dir/drivers/heimann_inter.c.s"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project/drivers/heimann_inter.c -o CMakeFiles/app.dir/drivers/heimann_inter.c.s
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project_clean/drivers/heimann_inter.c -o CMakeFiles/app.dir/drivers/heimann_inter.c.s
 
 CMakeFiles/app.dir/drivers/heimann_reg.c.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/drivers/heimann_reg.c.o: ../drivers/heimann_reg.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building C object CMakeFiles/app.dir/drivers/heimann_reg.c.o"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/heimann_reg.c.o -c /home/cat/project/drivers/heimann_reg.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building C object CMakeFiles/app.dir/drivers/heimann_reg.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/heimann_reg.c.o -c /home/cat/project_clean/drivers/heimann_reg.c
 
 CMakeFiles/app.dir/drivers/heimann_reg.c.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/app.dir/drivers/heimann_reg.c.i"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project/drivers/heimann_reg.c > CMakeFiles/app.dir/drivers/heimann_reg.c.i
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project_clean/drivers/heimann_reg.c > CMakeFiles/app.dir/drivers/heimann_reg.c.i
 
 CMakeFiles/app.dir/drivers/heimann_reg.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/app.dir/drivers/heimann_reg.c.s"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project/drivers/heimann_reg.c -o CMakeFiles/app.dir/drivers/heimann_reg.c.s
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project_clean/drivers/heimann_reg.c -o CMakeFiles/app.dir/drivers/heimann_reg.c.s
 
 CMakeFiles/app.dir/drivers/mix415_drv.c.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/drivers/mix415_drv.c.o: ../drivers/mix415_drv.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building C object CMakeFiles/app.dir/drivers/mix415_drv.c.o"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/mix415_drv.c.o -c /home/cat/project/drivers/mix415_drv.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building C object CMakeFiles/app.dir/drivers/mix415_drv.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/mix415_drv.c.o -c /home/cat/project_clean/drivers/mix415_drv.c
 
 CMakeFiles/app.dir/drivers/mix415_drv.c.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/app.dir/drivers/mix415_drv.c.i"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project/drivers/mix415_drv.c > CMakeFiles/app.dir/drivers/mix415_drv.c.i
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project_clean/drivers/mix415_drv.c > CMakeFiles/app.dir/drivers/mix415_drv.c.i
 
 CMakeFiles/app.dir/drivers/mix415_drv.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/app.dir/drivers/mix415_drv.c.s"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project/drivers/mix415_drv.c -o CMakeFiles/app.dir/drivers/mix415_drv.c.s
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project_clean/drivers/mix415_drv.c -o CMakeFiles/app.dir/drivers/mix415_drv.c.s
 
 CMakeFiles/app.dir/drivers/public_cfg.c.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/drivers/public_cfg.c.o: ../drivers/public_cfg.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building C object CMakeFiles/app.dir/drivers/public_cfg.c.o"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/public_cfg.c.o -c /home/cat/project/drivers/public_cfg.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building C object CMakeFiles/app.dir/drivers/public_cfg.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/drivers/public_cfg.c.o -c /home/cat/project_clean/drivers/public_cfg.c
 
 CMakeFiles/app.dir/drivers/public_cfg.c.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/app.dir/drivers/public_cfg.c.i"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project/drivers/public_cfg.c > CMakeFiles/app.dir/drivers/public_cfg.c.i
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project_clean/drivers/public_cfg.c > CMakeFiles/app.dir/drivers/public_cfg.c.i
 
 CMakeFiles/app.dir/drivers/public_cfg.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/app.dir/drivers/public_cfg.c.s"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project/drivers/public_cfg.c -o CMakeFiles/app.dir/drivers/public_cfg.c.s
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project_clean/drivers/public_cfg.c -o CMakeFiles/app.dir/drivers/public_cfg.c.s
 
 CMakeFiles/app.dir/drivers/websocket_server.cpp.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/drivers/websocket_server.cpp.o: ../drivers/websocket_server.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/app.dir/drivers/websocket_server.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/app.dir/drivers/websocket_server.cpp.o -c /home/cat/project/drivers/websocket_server.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/app.dir/drivers/websocket_server.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/app.dir/drivers/websocket_server.cpp.o -c /home/cat/project_clean/drivers/websocket_server.cpp
 
 CMakeFiles/app.dir/drivers/websocket_server.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/app.dir/drivers/websocket_server.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/cat/project/drivers/websocket_server.cpp > CMakeFiles/app.dir/drivers/websocket_server.cpp.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/cat/project_clean/drivers/websocket_server.cpp > CMakeFiles/app.dir/drivers/websocket_server.cpp.i
 
 CMakeFiles/app.dir/drivers/websocket_server.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/app.dir/drivers/websocket_server.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/cat/project/drivers/websocket_server.cpp -o CMakeFiles/app.dir/drivers/websocket_server.cpp.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/cat/project_clean/drivers/websocket_server.cpp -o CMakeFiles/app.dir/drivers/websocket_server.cpp.s
 
 CMakeFiles/app.dir/opencv/opencv_draw.cpp.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/opencv/opencv_draw.cpp.o: ../opencv/opencv_draw.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/app.dir/opencv/opencv_draw.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/app.dir/opencv/opencv_draw.cpp.o -c /home/cat/project/opencv/opencv_draw.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/app.dir/opencv/opencv_draw.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/app.dir/opencv/opencv_draw.cpp.o -c /home/cat/project_clean/opencv/opencv_draw.cpp
 
 CMakeFiles/app.dir/opencv/opencv_draw.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/app.dir/opencv/opencv_draw.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/cat/project/opencv/opencv_draw.cpp > CMakeFiles/app.dir/opencv/opencv_draw.cpp.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/cat/project_clean/opencv/opencv_draw.cpp > CMakeFiles/app.dir/opencv/opencv_draw.cpp.i
 
 CMakeFiles/app.dir/opencv/opencv_draw.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/app.dir/opencv/opencv_draw.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/cat/project/opencv/opencv_draw.cpp -o CMakeFiles/app.dir/opencv/opencv_draw.cpp.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/cat/project_clean/opencv/opencv_draw.cpp -o CMakeFiles/app.dir/opencv/opencv_draw.cpp.s
 
 CMakeFiles/app.dir/src/main.c.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/src/main.c.o: ../src/main.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building C object CMakeFiles/app.dir/src/main.c.o"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/src/main.c.o -c /home/cat/project/src/main.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building C object CMakeFiles/app.dir/src/main.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/app.dir/src/main.c.o -c /home/cat/project_clean/src/main.c
 
 CMakeFiles/app.dir/src/main.c.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/app.dir/src/main.c.i"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project/src/main.c > CMakeFiles/app.dir/src/main.c.i
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/cat/project_clean/src/main.c > CMakeFiles/app.dir/src/main.c.i
 
 CMakeFiles/app.dir/src/main.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/app.dir/src/main.c.s"
-	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project/src/main.c -o CMakeFiles/app.dir/src/main.c.s
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/cat/project_clean/src/main.c -o CMakeFiles/app.dir/src/main.c.s
 
 CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.o: CMakeFiles/app.dir/flags.make
 CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.o: ../yolov5/yolov5_rknn.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.o -c /home/cat/project/yolov5/yolov5_rknn.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.o -c /home/cat/project_clean/yolov5/yolov5_rknn.cpp
 
 CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/cat/project/yolov5/yolov5_rknn.cpp > CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/cat/project_clean/yolov5/yolov5_rknn.cpp > CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.i
 
 CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/cat/project/yolov5/yolov5_rknn.cpp -o CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/cat/project_clean/yolov5/yolov5_rknn.cpp -o CMakeFiles/app.dir/yolov5/yolov5_rknn.cpp.s
 
 # Object files for target app
 app_OBJECTS = \
@@ -317,7 +317,7 @@ app: /usr/lib/aarch64-linux-gnu/libopencv_photo.so.4.5.1
 app: /usr/lib/aarch64-linux-gnu/libopencv_imgproc.so.4.5.1
 app: /usr/lib/aarch64-linux-gnu/libopencv_core.so.4.5.1
 app: CMakeFiles/app.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/cat/project/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Linking CXX executable app"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/cat/project_clean/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Linking CXX executable app"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/app.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
@@ -330,6 +330,6 @@ CMakeFiles/app.dir/clean:
 .PHONY : CMakeFiles/app.dir/clean
 
 CMakeFiles/app.dir/depend:
-	cd /home/cat/project/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/cat/project /home/cat/project /home/cat/project/build /home/cat/project/build /home/cat/project/build/CMakeFiles/app.dir/DependInfo.cmake --color=$(COLOR)
+	cd /home/cat/project_clean/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/cat/project_clean /home/cat/project_clean /home/cat/project_clean/build /home/cat/project_clean/build /home/cat/project_clean/build/CMakeFiles/app.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : CMakeFiles/app.dir/depend
 

@@ -24,7 +24,8 @@ size_t frame_size = MIX_WIDTH * MIX_HEIGHT * 3 / 2;
 int main(int argc, char *argv[]) 
 {
     //thread_context_t *ctx = malloc(sizeof(thread_context_t));
-
+    printf("MAIN DEBUG START\n");
+    fflush(stdout);
     thread_context_t *ctx = NULL;
     if (thread_context_init(&ctx) != 0) {
         fprintf(stderr, "Fatal: Failed to init thread context\n");
@@ -33,6 +34,12 @@ int main(int argc, char *argv[])
     
     if (init_cam_queue(&ctx->cam_queue, frame_size) != 0) {
         fprintf(stderr, "Fatal: Failed to init cam queue\n");
+        thread_context_destroy(ctx);
+        return -1;
+    }
+    if (init_thermal_queue(&ctx->thermal_queue) != 0) {
+        fprintf(stderr, "Fatal: Failed to init thermal queue\n");
+        destroy_cam_queue(&ctx->cam_queue);
         thread_context_destroy(ctx);
         return -1;
     }
@@ -80,6 +87,7 @@ int main(int argc, char *argv[])
     pthread_join(ws_tid, NULL);
     pthread_join(cmd_tid, NULL);
 
+    destroy_thermal_queue(&ctx->thermal_queue);
     destroy_cam_queue(&ctx->cam_queue);
     thread_context_destroy(ctx);
 

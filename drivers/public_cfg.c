@@ -21,11 +21,28 @@ int init_cam_queue(cam_queue_t *q, size_t frame_size) {
     return 0;
 }
 
+int init_thermal_queue(thermal_queue_t *q) {
+    memset(q, 0, sizeof(*q));
+    pthread_mutex_init(&q->mutex, NULL);
+    q->write_idx = 0;
+
+    for (int i = 0; i < THERMAL_QUEUE_SIZE; i++) {
+        q->frames[i].valid = 0;
+        q->frames[i].meta.frame_id = 0;
+        q->frames[i].meta.ts_us = 0;
+    }
+    return 0;
+}
+
 void destroy_cam_queue(cam_queue_t *q) {
     for (int i = 0; i < CAM_QUEUE_SIZE; i++) {
         free(q->frames[i].data);
         q->frames[i].data = NULL;
     }
+    pthread_mutex_destroy(&q->mutex);
+}
+
+void destroy_thermal_queue(thermal_queue_t *q) {
     pthread_mutex_destroy(&q->mutex);
 }
 

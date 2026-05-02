@@ -204,12 +204,15 @@ void* camera_thread(void *arg) {
         dequeue_fail_count = 0;
 
         uint64_t cam_ts = now_us();
+        uint64_t next_cam_frame_id = cam_frame_id + 1;
 
         /* 1) 先更新老模式用的 yuv_buf */
         pthread_mutex_lock(&ctx->yuv_buf.mutex);
 
         memcpy(local_frame_buffer, buffers[buf.index].start, frame_size);
         ctx->yuv_buf.yuv_data = local_frame_buffer;
+        ctx->yuv_buf.meta.frame_id = next_cam_frame_id;
+        ctx->yuv_buf.meta.ts_us = cam_ts;
         ctx->yuv_buf.updated = 1;
 
         pthread_cond_signal(&ctx->yuv_buf.cond);
@@ -220,11 +223,12 @@ void* camera_thread(void *arg) {
 
         cam_frame_t *slot = &ctx->cam_queue.frames[ctx->cam_queue.write_idx];
         memcpy(slot->data, buffers[buf.index].start, frame_size);
-        slot->meta.frame_id = ++cam_frame_id;
+        slot->meta.frame_id = next_cam_frame_id;
         slot->meta.ts_us = cam_ts;
         slot->valid = 1;
 
         ctx->cam_queue.write_idx = (ctx->cam_queue.write_idx + 1) % CAM_QUEUE_SIZE;
+        cam_frame_id = next_cam_frame_id;
 
         pthread_mutex_unlock(&ctx->cam_queue.mutex);
 

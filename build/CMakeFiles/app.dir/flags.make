@@ -5,13 +5,13 @@
 # compile CXX with /usr/bin/c++
 C_DEFINES = 
 
-C_INCLUDES = -I/home/cat/project/include -I/home/cat/project/drivers -I/home/cat/project/opencv -I/home/cat/project/yolov5 -isystem /usr/include/opencv4
+C_INCLUDES = -I/home/cat/project_clean/include -I/home/cat/project_clean/drivers -I/home/cat/project_clean/opencv -I/home/cat/project_clean/yolov5 -isystem /usr/include/opencv4
 
 C_FLAGS = -O3 -Wall -std=gnu99
 
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/home/cat/project/include -I/home/cat/project/drivers -I/home/cat/project/opencv -I/home/cat/project/yolov5 -isystem /usr/include/opencv4
+CXX_INCLUDES = -I/home/cat/project_clean/include -I/home/cat/project_clean/drivers -I/home/cat/project_clean/opencv -I/home/cat/project_clean/yolov5 -isystem /usr/include/opencv4
 
 CXX_FLAGS = -O3 -Wall -std=gnu++17
 

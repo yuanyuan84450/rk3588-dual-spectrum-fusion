@@ -98,6 +98,7 @@ uint8_t new_offsets = 1;
 
 // PROGRAMM CONTROL
 bool switch_ptat_vdd = 0;
+static uint8_t sampled_switch_ptat_vdd = 0;
 uint8_t adr_offset = 0x00;
 uint8_t send_data = 0;
 uint16_t picnum = 0;
@@ -880,7 +881,7 @@ void sort_data()
   /******************************************************************************************************************
     new PTAT values (store them in PTAT buffer and calculate the average for pixel compensation
   ******************************************************************************************************************/
-  if (switch_ptat_vdd == 1)
+  if (sampled_switch_ptat_vdd == 1)
   {
     sum = 0;
     // calculate ptat average (datasheet, chapter: 11.1 Ambient Temperature )
@@ -921,7 +922,7 @@ void sort_data()
   /******************************************************************************************************************
     new VDD values (store them in VDD buffer and calculate the average for pixel compensation
   ******************************************************************************************************************/
-  if (switch_ptat_vdd == 0)
+  if (sampled_switch_ptat_vdd == 0)
   {
     sum = 0;
     // calculate vdd average (datasheet, chapter: 11.4 Vdd Compensation )
@@ -1011,6 +1012,8 @@ void readblockinterrupt(int sensor_fd, int timer_fd, uint32_t interval_us)
     }
     else
     {
+      sampled_switch_ptat_vdd = switch_ptat_vdd;
+
       if (picnum > 1)
         state = 1; // state = 1 means that all required blocks are sampled
       picnum++;    // increase the picture counter
@@ -1687,6 +1690,11 @@ void* thermal_thread(void *arg)
       pthread_cond_signal(&ctx->thermal_buf.cond);
       pthread_mutex_unlock(&ctx->thermal_buf.mutex);
     }
+    /* 加这里：打印热成像实际生成的帧 */
+printf("[THERMAL PUB] id=%llu ts=%llu center=%u\n",
+       (unsigned long long)ctx->thermal_buf.meta.frame_id,
+      (unsigned long long)ctx->thermal_buf.meta.ts_us);
+fflush(stdout);
 
     if(ctx->cmd_req.print_eeprom_header_req){
       print_eeprom_header();

@@ -1,6 +1,8 @@
 #include <pthread.h>
+#include <errno.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <time.h>
 
 #include "opencv2/opencv.hpp"
 #include "opencv_draw.h"
@@ -18,11 +20,6 @@ static inline uint64_t timestamp_diff_us(uint64_t a, uint64_t b)
     return (a > b) ? (a - b) : (b - a);
 }
 
-static inline int cam_queue_index(int oldest_idx, int offset)
-{
-    return (oldest_idx + offset) % CAM_QUEUE_SIZE;
-}
-
 int find_best_cam_frame(cam_queue_t *q, uint64_t thermal_ts, int *best_idx, uint64_t *best_diff_us)
 {
     int valid_count = 0;
@@ -36,30 +33,45 @@ int find_best_cam_frame(cam_queue_t *q, uint64_t thermal_ts, int *best_idx, uint
     if (valid_count <= 0) return -1;
 
     int oldest_idx = (valid_count == CAM_QUEUE_SIZE) ? q->write_idx : 0;
-    int left = 0;
-    int right = valid_count;
-
-    while (left < right) {
-        int mid = left + (right - left) / 2;
-        int idx = cam_queue_index(oldest_idx, mid);
-
-        if (q->frames[idx].meta.ts_us < thermal_ts) {
-            left = mid + 1;
-        } else {
-            right = mid;
-        }
-    }
-
-    int candidate_offsets[2] = {left, left - 1};
     uint64_t min_diff = UINT64_MAX;
     int min_idx = -1;
 
-    for (int i = 0; i < 2; i++) {
-        int offset = candidate_offsets[i];
-        if (offset < 0 || offset >= valid_count) continue;
-
-        int idx = cam_queue_index(oldest_idx, offset);
+    for (int offset = 0; offset < valid_count; ++offset) {
+        int idx = (oldest_idx + offset) % CAM_QUEUE_SIZE;
         uint64_t diff = timestamp_diff_us(q->frames[idx].meta.ts_us, thermal_ts);
+
+        if (diff < min_diff) {
+            min_diff = diff;
+            min_idx = idx;
+        }
+    }
+
+    if (min_idx < 0) return -1;
+
+    *best_idx = min_idx;
+    *best_diff_us = min_diff;
+    return 0;
+}
+
+int find_best_thermal_frame(thermal_queue_t *q, uint64_t cam_ts, int *best_idx, uint64_t *best_diff_us)
+{
+    int valid_count = 0;
+
+    if (q->frames[q->write_idx].valid) {
+        valid_count = THERMAL_QUEUE_SIZE;
+    } else {
+        valid_count = q->write_idx;
+    }
+
+    if (valid_count <= 0) return -1;
+
+    int oldest_idx = (valid_count == THERMAL_QUEUE_SIZE) ? q->write_idx : 0;
+    uint64_t min_diff = UINT64_MAX;
+    int min_idx = -1;
+
+    for (int offset = 0; offset < valid_count; ++offset) {
+        int idx = (oldest_idx + offset) % THERMAL_QUEUE_SIZE;
+        uint64_t diff = timestamp_diff_us(q->frames[idx].meta.ts_us, cam_ts);
 
         if (diff < min_diff) {
             min_diff = diff;
@@ -188,6 +200,28 @@ void correct_image(const Mat& input, Mat& output, const Mat& K_src, const Mat& K
 double fov_th = 94.0, fov_vis = 119.8;
 Mat K_th, K_vis; 
 
+static void compute_thermal_range(const uint16_t* thermal_pixel, uint16_t* min_val, uint16_t* max_val)
+{
+    uint16_t local_min = thermal_pixel[0];
+    uint16_t local_max = thermal_pixel[0];
+
+    for (int row = 0; row < THERMAL_ROWS; ++row) {
+        for (int col = 0; col < THERMAL_COLS; ++col) {
+            uint16_t value = thermal_pixel[row * THERMAL_COLS + col];
+
+            if (value < local_min) {
+                local_min = value;
+            }
+            if (value > local_max) {
+                local_max = value;
+            }
+        }
+    }
+
+    *min_val = local_min;
+    *max_val = local_max;
+}
+
 int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_data, Mat& out_bgr_img, Mat& out_thermal_img) {
     
     //--------STEP1: 处理摄像头图像 YUV → BGR -------------//
@@ -210,15 +244,22 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     int temp_inter = 0;
     const int disp_rows = 32 * PROB_SCALE;  // 128
     const int disp_cols = 32 * PROB_SCALE;  // 128
+    uint16_t local_t_min = 0;
+    uint16_t local_t_max = 0;
     
     static Mat thermal_ori_img(32, 32, CV_8UC1, Scalar(0));
     static Mat thermal_gauss_img, thermal_lanczos_img;
     static Mat thermal_color_img(disp_rows, disp_cols, CV_8UC3, Scalar(0, 0, 0));
     static Mat lanczos_img(32, 32, CV_8UC1, Scalar(0));
 
+    compute_thermal_range(thermal_pixel, &local_t_min, &local_t_max);
+    if (local_t_max <= local_t_min) {
+        local_t_max = local_t_min + 1;
+    }
+
     for (int i = 0; i < 32; i++) {
         for (int j = 0; j < 32; j++) {
-            int val = (180.0 * (thermal_pixel[i * THERMAL_COLS + j] - T_min) / (T_max - T_min));
+            int val = (180.0 * (thermal_pixel[i * THERMAL_COLS + j] - local_t_min) / (local_t_max - local_t_min));
             val = (val < 0) ? 0 : (val > 179 ? 179 : val);
             draw_pixel[i][j] = val;
             thermal_ori_img.at<uchar>(j, i) = draw_pixel[i][j];
@@ -396,7 +437,7 @@ int try_sync_fusion(thread_context_t *ctx,
     uint64_t thermal_id = 0;
     int best_idx = -1;
     uint64_t best_diff_us = 0;
-    uint64_t cam_id = 0;
+    static uint64_t last_thermal_id = 0;
 
     // 1. 等新的热图
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -424,30 +465,49 @@ int try_sync_fusion(thread_context_t *ctx,
     ctx->thermal_buf.updated = 0;
     pthread_mutex_unlock(&ctx->thermal_buf.mutex);
 
+    printf("[SYNC TAKE] thermal_id=%llu thermal_ts=%llu\n",
+       (unsigned long long)thermal_id,
+       (unsigned long long)thermal_ts);
+fflush(stdout);
+
+    if (thermal_id <= last_thermal_id)
+    {
+        return 0;
+    }
+
     // 2. 找最近可见光
     pthread_mutex_lock(&ctx->cam_queue.mutex);
 
     if (find_best_cam_frame(&ctx->cam_queue, thermal_ts, &best_idx, &best_diff_us) != 0)
     {
         pthread_mutex_unlock(&ctx->cam_queue.mutex);
+        printf("[SYNC DROP] thermal_id=%llu reason=no_cam_frame\n",
+           (unsigned long long)thermal_id);
+fflush(stdout);
         return 0;
     }
+
 
     if (best_diff_us > MAX_SYNC_DIFF_US)
     {
         pthread_mutex_unlock(&ctx->cam_queue.mutex);
         return 0;
     }
+    
+    uint64_t cam_id = ctx->cam_queue.frames[best_idx].meta.frame_id;
+uint64_t cam_ts = ctx->cam_queue.frames[best_idx].meta.ts_us;
 
     memcpy(local_yuv, ctx->cam_queue.frames[best_idx].data, frame_size);
-    cam_id = ctx->cam_queue.frames[best_idx].meta.frame_id;
-
     pthread_mutex_unlock(&ctx->cam_queue.mutex);
+    last_thermal_id = thermal_id;
 
-    /*printf("[SYNC] thermal_id=%llu cam_id=%llu diff=%.2f ms\n",
-           (unsigned long long)thermal_id,
-           (unsigned long long)cam_id,
-           best_diff_us / 1000.0); */
+    printf("[SYNC OK] thermal_id=%llu thermal_ts=%llu cam_id=%llu cam_ts=%llu diff=%.2f ms\n",
+       (unsigned long long)thermal_id,
+       (unsigned long long)thermal_ts,
+       (unsigned long long)cam_id,
+       (unsigned long long)cam_ts,
+       best_diff_us / 1000.0);
+fflush(stdout);
 
     return 1;
 }
@@ -457,6 +517,20 @@ static void reset_fusion_state_on_mode_switch(thread_context_t *ctx, int enterin
     pthread_mutex_lock(&ctx->thermal_buf.mutex);
     ctx->thermal_buf.updated = 0;
     pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+
+    pthread_mutex_lock(&ctx->thermal_queue.mutex);
+    for (int i = 0; i < THERMAL_QUEUE_SIZE; ++i) {
+        ctx->thermal_queue.frames[i].valid = 0;
+    }
+    ctx->thermal_queue.write_idx = 0;
+    pthread_mutex_unlock(&ctx->thermal_queue.mutex);
+
+    pthread_mutex_lock(&ctx->cam_queue.mutex);
+    for (int i = 0; i < CAM_QUEUE_SIZE; ++i) {
+        ctx->cam_queue.frames[i].valid = 0;
+    }
+    ctx->cam_queue.write_idx = 0;
+    pthread_mutex_unlock(&ctx->cam_queue.mutex);
 
     pthread_mutex_lock(&ctx->yuv_buf.mutex);
     ctx->yuv_buf.updated = 0;
