@@ -46,7 +46,7 @@ void* camera_thread(void *arg) {
     int argc = ctx->thread_args.argc;
     char **argv = ctx->thread_args.argv;
 
-    const char *device = (argc == 4) ? argv[3] : CAM_DEVICE;
+    const char *device = (argc >= 3) ? argv[2] : CAM_DEVICE;
     // int fd = open(device, O_RDWR | O_NONBLOCK);
     int fd = open(device, O_RDWR);
     if (fd == -1) {

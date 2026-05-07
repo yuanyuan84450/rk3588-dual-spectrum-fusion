@@ -20,6 +20,7 @@ CMakeFiles/app.dir/drivers/heimann_drv.c.o
  ../include/heimann_drv.h
  ../include/heimann_inter.h
  ../include/heimann_reg.h
+ ../include/heimann_uapi.h
  ../include/mix415_drv.h
  ../include/public_cfg.h
  ../opencv/opencv_draw.h

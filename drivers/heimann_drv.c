@@ -8,6 +8,10 @@
 #include <pthread.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <sys/ioctl.h>
+#include <errno.h>
+#include <string.h>
+#include "heimann_uapi.h"
 #include "heimann_drv.h"
 #include "opencv_draw.h"
 #include "public_cfg.h"
@@ -135,50 +139,82 @@ uint32_t T_avg;        // 温度平均值
    Description:     read eeprom register as 8
    Dependencies:    register address (address)
  *******************************************************************/
-int read_EEPROM_byte(int fd, uint16_t mem_reg) //, uint8_t * rdata
+
+/*
+ * 新内核驱动版本：应用层不再通过 /dev/i2c-5 直接读 EEPROM。
+ * 完整 EEPROM 由驱动缓存，并通过 ioctl(HEIMANN_IOC_GET_EEPROM) 传回应用层。
+ */
+static uint8_t g_heimann_eeprom_cache[HEIMANN_EEPROM_SIZE];
+static int g_heimann_eeprom_cache_valid = 0;
+
+static int heimann_load_eeprom_cache_from_driver(int heimann_fd)
 {
-  // int retries;
-  uint8_t data[2];
-  uint8_t rdata;
+  struct heimann_eeprom_dump *dump;
+  int ret;
 
-  // 设置地址长度：0为7位地址
-  ioctl(fd, I2C_TENBIT, 0);
-
-  // 设置寄存器地址（高低位）
-  data[0] = (uint8_t)(mem_reg >> 8);   // MSB
-  data[1] = (uint8_t)(mem_reg & 0xFF); // LSB
-
-  // 设置从机地址
-  if (ioctl(fd, I2C_SLAVE, EEPROM_ADDRESS) < 0)
+  dump = (struct heimann_eeprom_dump *)calloc(1, sizeof(*dump));
+  if (!dump)
   {
-    printf("fail to set i2c device slave address!\n");
-    close(fd);
+    perror("calloc heimann_eeprom_dump");
     return -1;
   }
 
-  // 设置收不到ACK时的重试次数
-  ioctl(fd, I2C_RETRIES, 5);
+  dump->size = HEIMANN_EEPROM_SIZE;
 
-  if (write(fd, data, 2) == 2)
+  ret = ioctl(heimann_fd, HEIMANN_IOC_GET_EEPROM, dump);
+  if (ret < 0)
   {
-    if (read(fd, &rdata, 1) == 1)
-    {
-      return rdata;
-    }
-  }
-  else
-  {
-    printf("fail to read_EEPROM_byte!\n");
+    perror("ioctl HEIMANN_IOC_GET_EEPROM failed");
+    free(dump);
     return -1;
   }
+
+  if (dump->size != HEIMANN_EEPROM_SIZE)
+  {
+    printf("EEPROM dump size mismatch: got=%u expected=%u\n",
+           dump->size, HEIMANN_EEPROM_SIZE);
+    free(dump);
+    return -1;
+  }
+
+  memcpy(g_heimann_eeprom_cache, dump->data, HEIMANN_EEPROM_SIZE);
+  g_heimann_eeprom_cache_valid = 1;
+
+  printf("EEPROM cache loaded from /dev/heimann0: size=%u, first=%02x %02x %02x %02x\n",
+         dump->size,
+         g_heimann_eeprom_cache[0],
+         g_heimann_eeprom_cache[1],
+         g_heimann_eeprom_cache[2],
+         g_heimann_eeprom_cache[3]);
+
+  free(dump);
   return 0;
 }
 
 /********************************************************************
-   Function:        void read_EEPROM_byte(unsigned int eeaddress )
-   Description:     read eeprom register as 8
-   Dependencies:    register address (address)
+   Function:        int read_EEPROM_byte(int fd, uint16_t mem_reg)
+   Description:     新版本从驱动 ioctl 得到的 EEPROM 缓存里读取 1 字节。
+                    fd 参数保留，只是为了兼容原 read_eeprom(fd) 调用。
  *******************************************************************/
+int read_EEPROM_byte(int fd, uint16_t mem_reg)
+{
+  (void)fd;
+
+  if (!g_heimann_eeprom_cache_valid)
+  {
+    printf("EEPROM cache is not loaded yet!\n");
+    return -1;
+  }
+
+  if (mem_reg >= HEIMANN_EEPROM_SIZE)
+  {
+    printf("EEPROM address out of range: 0x%04x\n", mem_reg);
+    return -1;
+  }
+
+  return g_heimann_eeprom_cache[mem_reg];
+}
+
 int write_EEPROM_byte(int fd, uint16_t mem_addr, uint8_t content)
 {
   // int retries;
@@ -1528,12 +1564,64 @@ int sensor_init(int sensor_fd, int eeprom_fd)
 	return 0;
 }
 
-// 更新传感器画面
+
+/*
+ * 新应用层初始化：
+ * 1. 从 /dev/heimann0 通过 ioctl 获取完整 EEPROM 缓存；
+ * 2. 复用原 read_eeprom() 解析校准参数；
+ * 3. 复用原 calcPixC() 计算像素常数。
+ *
+ * 注意：sensor 唤醒、TRIM 写入、启动采集已经由内核驱动完成，
+ * 这里不再调用 connect_sensor()/write_sensor_byte()/write_calibration_settings_to_sensor()。
+ */
+static int heimann_app_calibration_init(int heimann_fd)
+{
+  if (heimann_load_eeprom_cache_from_driver(heimann_fd) < 0)
+  {
+    printf("failed to load EEPROM cache from heimann driver\n");
+    return -1;
+  }
+
+  if (!pixc2_0)
+  {
+    pixc2_0 = (uint32_t *)malloc(NUMBER_OF_PIXEL * sizeof(uint32_t));
+    if (pixc2_0 == NULL)
+    {
+      printf("malloc pixc2_0 failed\n");
+      return -1;
+    }
+    printf("pixc2 malloc succeeded\n");
+  }
+
+  pixc2 = pixc2_0;
+
+  prob_status = PROB_INITIALIZING;
+
+  /* read_eeprom() 内部会通过 read_EEPROM_byte() 从 g_heimann_eeprom_cache[] 取数据 */
+  read_eeprom(heimann_fd);
+
+  gradscale_div = pow(2, gradscale);
+  vddscgrad_div = pow(2, vddscgrad);
+  vddscoff_div = pow(2, vddscoff);
+
+  calcPixC();
+
+  prob_status = PROB_PREPARING;
+
+  printf("Heimann app calibration init success: id=0x%08x, mbit=0x%02x, bias=0x%02x, clk=0x%02x, bpa=0x%02x, pu=0x%02x\n",
+         id, mbit_calib, bias_calib, clk_calib, bpa_calib, pu_calib);
+
+  return 0;
+}
+
+/*
+ * 更新热成像画面。
+ * 新版本：应用层只通过 /dev/heimann0 读取 raw frame，
+ * EEPROM 从同一设备的 ioctl 获取，温度计算仍放在应用层。
+ */
 void* thermal_thread(void *arg)
 {
-
   static uint64_t thermal_frame_id = 0;
-  static uint64_t thermal_last_frame_ts = 0;
   static uint64_t thermal_last_print_ts = 0;
   static int thermal_fps_cnt = 0;
 
@@ -1541,182 +1629,161 @@ void* thermal_thread(void *arg)
   pid_t tid = syscall(SYS_gettid);
   printf("thermal_thread start, tid=%d\n", tid);
 
-	thread_context_t* ctx = (thread_context_t*)arg;
-	int argc = ctx->thread_args.argc;
-	char **argv = ctx->thread_args.argv;
+  thread_context_t* ctx = (thread_context_t*)arg;
+  int argc = ctx->thread_args.argc;
+  char **argv = ctx->thread_args.argv;
 
-	int sensor_fd, eeprom_fd;
-	int timer_fd;
-	int ret;
+  int heimann_fd = -1;
+  ssize_t ret;
 
-	// 设置 poll 结构体
-	struct pollfd fds;
+  if (argc < 2)
+  {
+    printf("Wrong use!\n");
+    printf("Usage: %s [heimann-dev] [video-dev]\n", argv[0]);
+    return (void*)-1;
+  }
 
-	if (argc < 3)
-	{
-		printf("Wrong use !\n");
-		printf("Usage: %s [sensor-i2c5] [eeprom-i2c5]\n", argv[0]);
-		return (void*)-1;
-	}
+  heimann_fd = open(argv[1], O_RDONLY);
+  if (heimann_fd < 0)
+  {
+    printf("Can't open heimann device %s\n", argv[1]);
+    perror("open /dev/heimann0 failed");
+    return (void*)-1;
+  }
 
-	sensor_fd = open(argv[1], O_RDWR); // open file and enable read and  write
-	eeprom_fd = open(argv[2], O_RDWR);
-	if (sensor_fd < 0)
-	{
-		printf("Can't open sensor_fd %s\n", argv[1]); // open i2c dev file fail
-		perror("open sensor_fd failed\n");
-		return (void*)-1;
-	}else{
-		printf("sensor_fd: %s open successfully\n", argv[1]);
-	}
+  printf("heimann device %s open successfully\n", argv[1]);
+  printf("thermal raw frame size expected: %zu bytes\n", sizeof(RAMoutput));
 
-	if (eeprom_fd < 0)
-	{
-		printf("Can't open eeprom_fd %s \n", argv[2]); // open i2c dev file fail
-		perror("open eeprom_fd failed\n");
-		return (void*)-1;
-	}else{
-		printf("eeprom_fd: %s open successfully\n", argv[2]);
-	}
+  if (heimann_app_calibration_init(heimann_fd) < 0)
+  {
+    printf("heimann_app_calibration_init failed\n");
+    close(heimann_fd);
+    return (void*)-1;
+  }
 
-	sensor_init(sensor_fd, eeprom_fd);
+  /*
+   * 和内核驱动 open() 中的 ptat_vdd_switch 初始值保持一致。
+   * 驱动每次 read() 之后会切换下一帧状态；应用层处理完当前帧后也同步切换。
+   */
+  switch_ptat_vdd = 0;
+  sampled_switch_ptat_vdd = 0;
+  picnum = 0;
+  flag_min_max_initaled = false;
+  T_avg = 0;
 
-	timert = calc_timert(clk_calib, mbit_calib);
-	printf("calc_timert: timert=%d\n", timert);
-	timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
-	if (timer_fd == -1)
-	{
-		perror("timerfd_create failed");
-		return (void*)-1;
-	}
-	set_timer(timer_fd, timert);
-	printf("Timer started. Waiting for events...\n");
+  while (!ctx->cmd_req.exit_req)
+  {
+    uint64_t t_read0 = now_us();
 
-	fds.fd = timer_fd;
-	fds.events = POLLIN;
+    ret = read(heimann_fd, RAMoutput, sizeof(RAMoutput));
 
-	while(!ctx->cmd_req.exit_req)
-	{
-    ret = poll(&fds, 1, -1); // 阻塞直到定时器事件发生
-    if (ret > 0)
+    uint64_t t_read1 = now_us();
+
+    if (ret < 0)
     {
-      if (fds.revents & POLLIN)
-      {
-        uint64_t expirations;
-        // read(timer_fd, &expirations, sizeof(expirations)); // 清除计时器事件
-        ssize_t n = read(timer_fd, &expirations, sizeof(expirations));
-        if (n != sizeof(expirations))
-        {
-          perror("read(timer_fd) failed");
-          continue; // 或者你认为合适的处理方式
-        }
-        heimann_timer_handle(); // 设置标志位
-      }
+      perror("read /dev/heimann0 failed");
+      usleep(10000);
+      continue;
     }
 
-		// 主循环检查标志位并读取数据
-		NewDataAvailable = true; // 用于首次读取
-		if (NewDataAvailable)
-		{
-			// 在这里放读取传感器数据的代码
-      uint64_t t_block0 = now_us();
-			readblockinterrupt(sensor_fd, timer_fd, timert);
-      uint64_t t_block1 = now_us();
-      /*printf("[THERMAL] one block cycle cost = %.2f ms\n",
-        (t_block1 - t_block0) / 1000.0);*/
-			NewDataAvailable = 0;
-			// printf("readblockinterrupt\n");
-			usleep(1000);
-		}
+    if ((size_t)ret != sizeof(RAMoutput))
+    {
+      printf("read /dev/heimann0 size mismatch: ret=%zd, expected=%zu\n",
+             ret, sizeof(RAMoutput));
+      usleep(10000);
+      continue;
+    }
 
     /*
-		if (state)
-		{ // state is 1 when all raw sensor voltages are read for this picture
-			
-      uint64_t t_sort0 = now_us();
-			sort_data(); //把已经读好的原始块数据“拼成一张热图所需的数据结构”
-      uint64_t t_sort1 = now_us();
-      printf("拼成一张热图所需时间 = %.2f ms\n",
-        (t_sort1 - t_sort0) / 1000.0);
-			state = 0;
+     * 关键：告诉原算法当前 read() 返回的这一帧是 PTAT 还是 VDD。
+     * sort_data() 会根据 sampled_switch_ptat_vdd 更新 Ta 或 VDD。
+     */
+    sampled_switch_ptat_vdd = switch_ptat_vdd;
+    picnum++;
 
-      uint64_t t_calc0 = now_us();
-			calculate_pixel_temp(); //整幅热成像的温度计算和补偿
-      uint64_t t_calc1 = now_us();
-      printf("温度补偿所需时间 = %.2f ms\n",
-        (t_calc1 - t_calc0) / 1000.0);
+    /* 每帧重新统计温度范围，避免沿用上一帧极值。 */
+    flag_min_max_initaled = false;
+    T_avg = 0;
 
-      uint64_t thermal_ts = now_us();
+    sort_data();
+    calculate_pixel_temp();
 
-      if (thermal_last_frame_ts != 0) {
-          printf("热成像两帧间隔 = %.2f ms\n",
-            (thermal_ts - thermal_last_frame_ts) / 1000.0);
-      }
-      thermal_last_frame_ts = thermal_ts;
+    /* 当前帧处理完后，准备下一帧 PTAT/VDD 状态。 */
+    if (DevConst.PTATVDDSwitch)
+      switch_ptat_vdd ^= 1;
 
-      if (thermal_last_print_ts == 0)
-          thermal_last_print_ts = thermal_ts;
+    thermal_frame_id++;
+    thermal_fps_cnt++;
 
-      thermal_fps_cnt++;
-      if (thermal_ts - thermal_last_print_ts >= 1000000ULL) {
-          printf("[THERMAL] fps=%d\n", thermal_fps_cnt);
-          thermal_fps_cnt = 0;
-          thermal_last_print_ts = thermal_ts;
-      }
+    uint64_t thermal_ts = now_us();
 
-      pthread_mutex_lock(&ctx->thermal_buf.mutex); //上锁，处理数据
-			memcpy(ctx->thermal_buf.thermal_data, data_pixel, sizeof(data_pixel));
-			// float ft_point = (data_pixel[16][16] / 10.0) - 273.15;
-			// printf("data_pixel[16][16] = %.2f\n", ft_point);
-			ctx->thermal_buf.updated = 1;
-			pthread_cond_signal(&ctx->thermal_buf.cond);
-			pthread_mutex_unlock(&ctx->thermal_buf.mutex);	
-		}
-      */
+    pthread_mutex_lock(&ctx->thermal_buf.mutex);
+    memcpy(ctx->thermal_buf.thermal_data, data_pixel, sizeof(ctx->thermal_buf.thermal_data));
+    ctx->thermal_buf.meta.frame_id = thermal_frame_id;
+    ctx->thermal_buf.meta.ts_us = thermal_ts;
+    ctx->thermal_buf.updated = 1;
+    pthread_cond_signal(&ctx->thermal_buf.cond);
+    pthread_mutex_unlock(&ctx->thermal_buf.mutex);
 
-    if (state)
+    /* 每 1 秒打印一次状态，避免刷屏。 */
+    if (thermal_last_print_ts == 0 || (t_read1 - thermal_last_print_ts) >= 1000000ULL)
     {
-      sort_data();
-      state = 0;
-      calculate_pixel_temp();
+      double cost_ms = (double)(t_read1 - t_read0) / 1000.0;
+      double fps = 0.0;
+      uint16_t center = data_pixel[PIXEL_PER_COLUMN / 2][PIXEL_PER_ROW / 2];
 
-      uint64_t thermal_ts = now_us();
+      if (thermal_last_print_ts != 0)
+        fps = (double)thermal_fps_cnt * 1000000.0 / (double)(t_read1 - thermal_last_print_ts);
 
-      pthread_mutex_lock(&ctx->thermal_buf.mutex);
-      memcpy(ctx->thermal_buf.thermal_data, data_pixel, sizeof(data_pixel));
-      ctx->thermal_buf.meta.frame_id = ++thermal_frame_id;
-      ctx->thermal_buf.meta.ts_us = thermal_ts;
-      ctx->thermal_buf.updated = 1;
-      pthread_cond_signal(&ctx->thermal_buf.cond);
-      pthread_mutex_unlock(&ctx->thermal_buf.mutex);
+      printf("[THERMAL] frame=%llu read=%zd cost=%.2f ms fps=%.2f sampled=%u next=%u picnum=%u "
+             "RAM4=%02x %02x %02x %02x RAM5=%02x %02x %02x %02x "
+             "Ta=%u ptat=%u vdd=%u Tmin=%u Tmax=%u center=%u first=%02x %02x %02x %02x\n",
+             (unsigned long long)thermal_frame_id,
+             ret,
+             cost_ms,
+             fps,
+             sampled_switch_ptat_vdd,
+             switch_ptat_vdd,
+             picnum,
+             RAMoutput[4][0], RAMoutput[4][1], RAMoutput[4][2], RAMoutput[4][3],
+             RAMoutput[5][0], RAMoutput[5][1], RAMoutput[5][2], RAMoutput[5][3],
+             Ta,
+             ptat_av_uint16,
+             vdd_av_uint16,
+             T_min,
+             T_max,
+             center,
+             RAMoutput[0][0], RAMoutput[0][1], RAMoutput[0][2], RAMoutput[0][3]);
+
+      thermal_last_print_ts = t_read1;
+      thermal_fps_cnt = 0;
+      fflush(stdout);
     }
-    /* 加这里：打印热成像实际生成的帧 */
-printf("[THERMAL PUB] id=%llu ts=%llu center=%u\n",
-       (unsigned long long)ctx->thermal_buf.meta.frame_id,
-      (unsigned long long)ctx->thermal_buf.meta.ts_us);
-fflush(stdout);
 
-    if(ctx->cmd_req.print_eeprom_header_req){
+    if (ctx->cmd_req.print_eeprom_header_req)
+    {
       print_eeprom_header();
       ctx->cmd_req.print_eeprom_header_req = 0;
     }
-    if(ctx->cmd_req.print_eeprom_hex_req){
-      print_eeprom_hex(eeprom_fd);
+
+    if (ctx->cmd_req.print_eeprom_hex_req)
+    {
+      /* print_eeprom_hex() 内部会调用 read_EEPROM_byte()，现在读的是 EEPROM cache。 */
+      print_eeprom_hex(heimann_fd);
       ctx->cmd_req.print_eeprom_hex_req = 0;
     }
-    
-		usleep(1000);
-	}
 
-	// 释放内存和文件
-	free(pixc2_0);
-	pixc2_0 = NULL;
+    usleep(10000);
+  }
 
-  stop_timer(timer_fd); // 显式取消定时器 很重要！否则CPU高负载运行
+  if (pixc2_0)
+  {
+    free(pixc2_0);
+    pixc2_0 = NULL;
+    pixc2 = NULL;
+  }
 
-	close(timer_fd);
-	close(sensor_fd);
-	close(eeprom_fd);
+  close(heimann_fd);
 
-	return NULL;
+  return NULL;
 }

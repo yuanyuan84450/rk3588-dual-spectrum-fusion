@@ -19,6 +19,7 @@ CMakeFiles/app.dir/drivers/heimann_drv.c.o: ../include/colormap.h
 CMakeFiles/app.dir/drivers/heimann_drv.c.o: ../include/heimann_drv.h
 CMakeFiles/app.dir/drivers/heimann_drv.c.o: ../include/heimann_inter.h
 CMakeFiles/app.dir/drivers/heimann_drv.c.o: ../include/heimann_reg.h
+CMakeFiles/app.dir/drivers/heimann_drv.c.o: ../include/heimann_uapi.h
 CMakeFiles/app.dir/drivers/heimann_drv.c.o: ../include/mix415_drv.h
 CMakeFiles/app.dir/drivers/heimann_drv.c.o: ../include/public_cfg.h
 CMakeFiles/app.dir/drivers/heimann_drv.c.o: ../opencv/opencv_draw.h
