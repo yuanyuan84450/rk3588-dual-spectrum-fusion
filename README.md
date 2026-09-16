@@ -16,10 +16,10 @@ YOLOv5 RKNN 推理，并通过 WebSocket 输出 JPEG 画面。
   P50/P95/P99 延迟。
 - 提供不依赖摄像头的 RKNN/DMA-BUF 基准程序，便于在板端复现和定位性能问题。
 
-## 协作与个人贡献
+## 个人工作
 
-本项目由多人协作完成，Git 历史保留各阶段的真实作者信息。早期双路采集、基础融合、
-WebSocket 和 YOLO 框架由项目协作者共同搭建；`yuanyuan84450` 在现有工程上主要完成：
+项目历史提交曾使用 `yuanyuan` 和 `shenjiajie` 等本人的旧提交身份，现统一为
+`yuanyuan84450 <maywillie@163.com>`。主要工作包括：
 
 - 为双路采集增加单调时间戳、同步队列及运行状态控制，处理同步后闪烁与退出时资源
   回收问题。
@@ -29,8 +29,7 @@ WebSocket 和 YOLO 框架由项目协作者共同搭建；`yuanyuan84450` 在现
 - 开发 Heimann V4L2/videobuf2 内核驱动、用户态采集测试和应用兼容层。
 - 完成板端编译、V4L2 compliance、连续采集及 STREAMON/OFF 压力验证，并整理技术文档。
 
-`.mailmap` 仅将同一邮箱下的旧用户名 `yuanyuan` 统一为 `yuanyuan84450`，其他协作者
-署名保持不变。
+`.mailmap` 同时记录旧提交身份与当前 GitHub 身份的对应关系。
 
 ## 系统架构
 
