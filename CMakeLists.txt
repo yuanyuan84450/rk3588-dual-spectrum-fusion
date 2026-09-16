@@ -9,6 +9,7 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_compile_definitions(_GNU_SOURCE)
 
 # 4. 编译选项（Debug带调试信息，Release优化速度）
 set(CMAKE_C_FLAGS_DEBUG "-g -Wall -O0")
@@ -56,6 +57,11 @@ if(NOT RKNN_LIB)
     message(FATAL_ERROR "RKNN library not found! Please install rknn runtime on LubanCat 4")
 endif()
 
+find_library(RGA_LIB rga PATHS /usr/lib /usr/lib/aarch64-linux-gnu)
+if(NOT RGA_LIB)
+    message(FATAL_ERROR "Rockchip RGA library not found")
+endif()
+
 # 8. 生成可执行文件
 add_executable(app ${ALL_SOURCES})
 
@@ -63,10 +69,26 @@ add_executable(app ${ALL_SOURCES})
 target_link_libraries(app PRIVATE
     ${OpenCV_LIBS}
     ${RKNN_LIB}
+    ${RGA_LIB}
     pthread
     v4l2
     m
     readline    # 新增：命令行补全库
     ncurses     # 新增：readline依赖
     websockets  # 新增：WebSocket库
+)
+
+# Reproducible RKNN benchmark that does not require camera or thermal hardware.
+add_executable(rknn_benchmark
+    tools/rknn_benchmark.cpp
+    yolov5/yolov5_rknn.cpp
+    drivers/perf_stats.c
+    drivers/rga_preprocess.cpp
+)
+
+target_link_libraries(rknn_benchmark PRIVATE
+    ${OpenCV_LIBS}
+    ${RKNN_LIB}
+    ${RGA_LIB}
+    pthread
 )

@@ -1,0 +1,42 @@
+# CMake and native build output
+build/
+build-*/
+build_*/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Compiled binaries and objects
+*.a
+*.so
+*.o
+*.ko
+*.mod
+*.mod.c
+*.cmd
+*.d
+*.out
+app
+rknn_benchmark
+/yolov5/yolov5_rknn
+/yolov5/yolov5s.rknn
+modules.order
+Module.symvers
+
+# Runtime output
+*.log
+*.jpg
+*.jpeg
+*.png
+core
+core.*
+
+# Editors and OS files
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db

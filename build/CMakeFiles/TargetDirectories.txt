@@ -1,3 +1,0 @@
-/home/cat/project_clean/build/CMakeFiles/rebuild_cache.dir
-/home/cat/project_clean/build/CMakeFiles/edit_cache.dir
-/home/cat/project_clean/build/CMakeFiles/app.dir

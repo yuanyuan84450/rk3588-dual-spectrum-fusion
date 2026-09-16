@@ -13,6 +13,7 @@
 #include <string.h>
 #include "heimann_uapi.h"
 #include "heimann_drv.h"
+#include "heimann_v4l2_capture.h"
 #include "opencv_draw.h"
 #include "public_cfg.h"
 
@@ -1616,8 +1617,9 @@ static int heimann_app_calibration_init(int heimann_fd)
 
 /*
  * 更新热成像画面。
- * 新版本：应用层只通过 /dev/heimann0 读取 raw frame，
- * EEPROM 从同一设备的 ioctl 获取，温度计算仍放在应用层。
+ * 优先使用 Heimann V4L2 HTPA 节点读取 raw frame；如果传入的是旧
+ * /dev/heimann0，则自动回退到 legacy read()。EEPROM 仍从控制节点
+ * 获取，温度计算继续放在应用层。
  */
 void* thermal_thread(void *arg)
 {
@@ -1634,6 +1636,11 @@ void* thermal_thread(void *arg)
   char **argv = ctx->thread_args.argv;
 
   int heimann_fd = -1;
+  int control_fd = -1;
+  heimann_v4l2_capture_t *v4l2_capture = NULL;
+  int use_v4l2 = 0;
+  uint32_t v4l2_sequence = 0;
+  uint64_t v4l2_timestamp_us = 0;
   ssize_t ret;
 
   if (argc < 2)
@@ -1643,21 +1650,48 @@ void* thermal_thread(void *arg)
     return (void*)-1;
   }
 
-  heimann_fd = open(argv[1], O_RDONLY);
-  if (heimann_fd < 0)
+  ret = heimann_v4l2_capture_open(argv[1], &v4l2_capture);
+  if (ret == 0)
   {
-    printf("Can't open heimann device %s\n", argv[1]);
-    perror("open /dev/heimann0 failed");
-    return (void*)-1;
+    const char *control_path = getenv("HEIMANN_CONTROL_DEVICE");
+
+    if (!control_path || !control_path[0])
+      control_path = "/dev/heimann0";
+
+    control_fd = open(control_path, O_RDONLY | O_CLOEXEC);
+    if (control_fd < 0)
+    {
+      fprintf(stderr, "Can't open Heimann control device %s: %s\n",
+              control_path, strerror(errno));
+      heimann_v4l2_capture_close(v4l2_capture);
+      return (void*)-1;
+    }
+    use_v4l2 = 1;
+    printf("Heimann V4L2 streaming enabled: video=%s control=%s\n",
+           argv[1], control_path);
+  }
+  else
+  {
+    heimann_fd = open(argv[1], O_RDONLY | O_CLOEXEC);
+    if (heimann_fd < 0)
+    {
+      printf("Can't open heimann device %s\n", argv[1]);
+      perror("open legacy Heimann device failed");
+      return (void*)-1;
+    }
+    control_fd = heimann_fd;
+    printf("Heimann legacy read() fallback enabled: device=%s\n", argv[1]);
   }
 
-  printf("heimann device %s open successfully\n", argv[1]);
   printf("thermal raw frame size expected: %zu bytes\n", sizeof(RAMoutput));
 
-  if (heimann_app_calibration_init(heimann_fd) < 0)
+  if (heimann_app_calibration_init(control_fd) < 0)
   {
     printf("heimann_app_calibration_init failed\n");
-    close(heimann_fd);
+    if (use_v4l2)
+      heimann_v4l2_capture_close(v4l2_capture);
+    if (control_fd >= 0)
+      close(control_fd);
     return (void*)-1;
   }
 
@@ -1675,13 +1709,26 @@ void* thermal_thread(void *arg)
   {
     uint64_t t_read0 = now_us();
 
-    ret = read(heimann_fd, RAMoutput, sizeof(RAMoutput));
+    if (use_v4l2)
+    {
+      ret = heimann_v4l2_capture_frame(v4l2_capture,
+                                       RAMoutput, sizeof(RAMoutput),
+                                       &v4l2_timestamp_us,
+                                       &v4l2_sequence);
+    }
+    else
+    {
+      ret = read(heimann_fd, RAMoutput, sizeof(RAMoutput));
+    }
 
     uint64_t t_read1 = now_us();
 
     if (ret < 0)
     {
-      perror("read /dev/heimann0 failed");
+      if (use_v4l2)
+        fprintf(stderr, "Heimann V4L2 DQBUF failed: %s\n", strerror((int)-ret));
+      else
+        perror("read /dev/heimann0 failed");
       usleep(10000);
       continue;
     }
@@ -1698,7 +1745,15 @@ void* thermal_thread(void *arg)
      * 关键：告诉原算法当前 read() 返回的这一帧是 PTAT 还是 VDD。
      * sort_data() 会根据 sampled_switch_ptat_vdd 更新 Ta 或 VDD。
      */
-    sampled_switch_ptat_vdd = switch_ptat_vdd;
+    if (use_v4l2)
+    {
+      sampled_switch_ptat_vdd = (uint8_t)(v4l2_sequence & 1u);
+      switch_ptat_vdd = (uint8_t)((v4l2_sequence + 1u) & 1u);
+    }
+    else
+    {
+      sampled_switch_ptat_vdd = switch_ptat_vdd;
+    }
     picnum++;
 
     /* 每帧重新统计温度范围，避免沿用上一帧极值。 */
@@ -1709,13 +1764,13 @@ void* thermal_thread(void *arg)
     calculate_pixel_temp();
 
     /* 当前帧处理完后，准备下一帧 PTAT/VDD 状态。 */
-    if (DevConst.PTATVDDSwitch)
+    if (!use_v4l2 && DevConst.PTATVDDSwitch)
       switch_ptat_vdd ^= 1;
 
     thermal_frame_id++;
     thermal_fps_cnt++;
 
-    uint64_t thermal_ts = now_us();
+    uint64_t thermal_ts = use_v4l2 ? v4l2_timestamp_us : now_us();
 
     pthread_mutex_lock(&ctx->thermal_buf.mutex);
     memcpy(ctx->thermal_buf.thermal_data, data_pixel, sizeof(ctx->thermal_buf.thermal_data));
@@ -1769,11 +1824,12 @@ void* thermal_thread(void *arg)
     if (ctx->cmd_req.print_eeprom_hex_req)
     {
       /* print_eeprom_hex() 内部会调用 read_EEPROM_byte()，现在读的是 EEPROM cache。 */
-      print_eeprom_hex(heimann_fd);
+      print_eeprom_hex(control_fd);
       ctx->cmd_req.print_eeprom_hex_req = 0;
     }
 
-    usleep(10000);
+    if (!use_v4l2)
+      usleep(10000);
   }
 
   if (pixc2_0)
@@ -1783,7 +1839,10 @@ void* thermal_thread(void *arg)
     pixc2 = NULL;
   }
 
-  close(heimann_fd);
+  if (use_v4l2)
+    heimann_v4l2_capture_close(v4l2_capture);
+  if (control_fd >= 0)
+    close(control_fd);
 
   return NULL;
 }

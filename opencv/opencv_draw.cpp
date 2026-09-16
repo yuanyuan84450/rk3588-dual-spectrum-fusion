@@ -6,6 +6,7 @@
 
 #include "opencv2/opencv.hpp"
 #include "opencv_draw.h"
+#include "perf_stats.h"
 #include "yolov5_rknn.h"
 #include "websocket_server.h"
 
@@ -96,6 +97,69 @@ extern void send_fusion_frame(const cv::Mat& fusion_img);
 uint8_t colormap = 1;
 uint8_t yolo_flag = 0, edge_flag = 0;
 uint8_t sync_fusion_flag = 0;
+
+enum PipelinePerfStage {
+    PERF_SYNC_WAIT,
+    PERF_NV12_TO_BGR,
+    PERF_THERMAL_RENDER,
+    PERF_VISIBLE_REMAP,
+    PERF_YOLO_PREPROCESS,
+    PERF_YOLO_INPUT_SET,
+    PERF_YOLO_INFERENCE,
+    PERF_YOLO_OUTPUT_GET,
+    PERF_YOLO_POSTPROCESS,
+    PERF_YOLO_TOTAL,
+    PERF_REGISTRATION,
+    PERF_FUSION,
+    PERF_JPEG_PUBLISH,
+    PERF_DISPLAY,
+    PERF_FRAME_PROCESS,
+    PERF_END_TO_END,
+    PERF_STAGE_COUNT
+};
+
+static perf_metric_t g_pipeline_perf[PERF_STAGE_COUNT];
+
+static void pipeline_perf_init()
+{
+    const char *names[PERF_STAGE_COUNT] = {
+        "sync_wait", "nv12_to_bgr", "thermal_render", "visible_remap",
+        "yolo_preprocess", "yolo_input_set", "yolo_inference", "yolo_output_get",
+        "yolo_postprocess", "yolo_total", "registration", "fusion",
+        "jpeg_publish", "display", "frame_process", "end_to_end"
+    };
+    for (int i = 0; i < PERF_STAGE_COUNT; ++i) {
+        perf_metric_init(&g_pipeline_perf[i], names[i]);
+    }
+}
+
+static inline void pipeline_perf_record(PipelinePerfStage stage, uint64_t begin_us)
+{
+    perf_metric_record(&g_pipeline_perf[stage], now_us() - begin_us);
+}
+
+static void pipeline_perf_print_if_due()
+{
+    static uint64_t last_print_us = 0;
+    static uint64_t last_frame_count = 0;
+    const uint64_t current_us = now_us();
+    if (last_print_us == 0) {
+        last_print_us = current_us;
+        return;
+    }
+    if (current_us - last_print_us < 5000000ULL) return;
+
+    const uint64_t frame_count = g_pipeline_perf[PERF_FRAME_PROCESS].total_count;
+    const double fps = (double)(frame_count - last_frame_count) * 1000000.0 /
+                       (double)(current_us - last_print_us);
+    printf("[PERF] pipeline_fps=%.2f window=%d samples\n", fps, PERF_SAMPLE_WINDOW);
+    for (int i = 0; i < PERF_STAGE_COUNT; ++i) {
+        perf_metric_print(&g_pipeline_perf[i]);
+    }
+    fflush(stdout);
+    last_frame_count = frame_count;
+    last_print_us = current_us;
+}
 
 struct AdjustParams {
     float shift_x;  // X方向微调（像素）
@@ -223,7 +287,8 @@ static void compute_thermal_range(const uint16_t* thermal_pixel, uint16_t* min_v
 }
 
 int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_data, Mat& out_bgr_img, Mat& out_thermal_img) {
-    
+    const uint64_t frame_begin_us = now_us();
+
     //--------STEP1: 处理摄像头图像 YUV → BGR -------------//
     // Mat cam_yuv_img(MIX_HEIGHT * 3 / 2, MIX_WIDTH, CV_8UC1, (void*)yuv_data);  // 假设 NV12 格式
     // Mat cam_bgr_img;
@@ -234,12 +299,15 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     //static  全局静态对象或线程静态对象，只分配一次，避免内存频繁申请释放和Cache miss 增多
     static Mat cam_yuv_img(MIX_HEIGHT * 3 / 2, MIX_WIDTH, CV_8UC1);  // 固定内存
     static Mat cam_bgr_img(MIX_HEIGHT, MIX_WIDTH, CV_8UC3);          // 输出图像
+    const uint64_t color_begin_us = now_us();
     memcpy(cam_yuv_img.data, yuv_data, MIX_WIDTH * MIX_HEIGHT * 3 / 2);
     cvtColor(cam_yuv_img, cam_bgr_img, COLOR_YUV2BGR_NV12);
+    pipeline_perf_record(PERF_NV12_TO_BGR, color_begin_us);
 
 
 
     //--------STEP2: 处理热成像 -------------//
+    const uint64_t thermal_begin_us = now_us();
     unsigned short draw_pixel[32][32] = {{0}};
     int temp_inter = 0;
     const int disp_rows = 32 * PROB_SCALE;  // 128
@@ -309,12 +377,15 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
 
     // 显示文本
     putText(thermal_color_img, temp_text, text_pos, FONT_HERSHEY_SIMPLEX, 0.3, Scalar(255, 255, 255), 1);
+    pipeline_perf_record(PERF_THERMAL_RENDER, thermal_begin_us);
 
     //--------STEP3: 处理cam畸变 -------------//
     static Mat cam_corrected_img;
 
     // correct_image(cam_bgr_img, cam_corrected_img, K_vis, K_th);
+    const uint64_t remap_begin_us = now_us();
     undistort(cam_bgr_img, cam_corrected_img, K_vis, Mat::zeros(5,1,CV_64F), K_th);
+    pipeline_perf_record(PERF_VISIBLE_REMAP, remap_begin_us);
 
 
     /*****  cam、ther原始图片暂存 *******/
@@ -323,7 +394,19 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
 
     //--------STEP3.1: yolov5检测 -------------//
     static Mat cam_yolo_img;
-    if(yolo_flag) yolov5_detect(cam_corrected_img, cam_yolo_img);
+    if (yolo_flag && yolov5_is_initialized()) {
+        yolov5_timing_t timing{};
+        if (yolov5_detect(cam_corrected_img, cam_yolo_img, &timing) == 0) {
+            perf_metric_record(&g_pipeline_perf[PERF_YOLO_PREPROCESS], timing.preprocess_us);
+            perf_metric_record(&g_pipeline_perf[PERF_YOLO_INPUT_SET], timing.input_set_us);
+            perf_metric_record(&g_pipeline_perf[PERF_YOLO_INFERENCE], timing.inference_us);
+            perf_metric_record(&g_pipeline_perf[PERF_YOLO_OUTPUT_GET], timing.output_get_us);
+            perf_metric_record(&g_pipeline_perf[PERF_YOLO_POSTPROCESS], timing.postprocess_us);
+            perf_metric_record(&g_pipeline_perf[PERF_YOLO_TOTAL], timing.total_us);
+        } else {
+            cam_corrected_img.copyTo(cam_yolo_img);
+        }
+    }
 
     //--------STEP3.2: edge检测 -------------//
     static Mat cam_edge_img;
@@ -335,10 +418,13 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
     adjust.shift_y = 10;    
     adjust.scale = 1;    // 不缩放
     adjust.angle = 0.0;    // 不旋转
+    const uint64_t registration_begin_us = now_us();
     Mat thermal_corrected_img = register_thermal_to_visible(thermal_color_img, adjust); //矫正
+    pipeline_perf_record(PERF_REGISTRATION, registration_begin_us);
 
+    const uint64_t fusion_begin_us = now_us();
     Mat fusion_img;
-    if(yolo_flag) {
+    if (yolo_flag && yolov5_is_initialized()) {
         addWeighted(cam_yolo_img, 0.2, thermal_corrected_img,0.8, 0, fusion_img);
     } else {
         addWeighted(cam_corrected_img, 0.2, thermal_corrected_img,0.8, 0, fusion_img);
@@ -349,22 +435,26 @@ int cv_show_fusion_display(const uint16_t* thermal_pixel, const uint8_t* yuv_dat
         addWeighted(cam_edge_img, 0.2, fusion_img, 0.8, 0, tmp_img);
         //addWeighted(cam_edge_img, 0.4, fusion_img, 0.6, 0, fusion_img); 这种方式会导致程序退出后，CPU高负载100%
         tmp_img.copyTo(fusion_img);
-    } 
+    }
+    pipeline_perf_record(PERF_FUSION, fusion_begin_us);
     // else if(pure_edge_flag) {
     //     addWeighted(cam_edge_img, 0.2, thermal_corrected_img,0.8, 0, fusion_img);
     // }
 
     //--------STEP5: CV显示-------------//
-    Mat final_img(640, 360, CV_8UC3, Scalar(0, 0, 0)); // 创建黑底画布
-    
-    fusion_img.copyTo(final_img);
+    const Mat &final_img = fusion_img;
 
+    const uint64_t publish_begin_us = now_us();
     send_fusion_frame(final_img);  //socket转发
+    pipeline_perf_record(PERF_JPEG_PUBLISH, publish_begin_us);
     // cam_corrected_img.copyTo(final_img);
 
 
+    const uint64_t display_begin_us = now_us();
     imshow("Fusion Display", final_img);
     waitKey(1); //调整为30ms间隔，如果是waitKey(10)，会100%占用CPU
+    pipeline_perf_record(PERF_DISPLAY, display_begin_us);
+    pipeline_perf_record(PERF_FRAME_PROCESS, frame_begin_us);
 
     return 0;
 
@@ -375,8 +465,7 @@ int run_live_fusion(thread_context_t *ctx,
                     uint16_t last_thermal[TH_THERMAL_ROWS][TH_THERMAL_COLS],
                     int *thermal_valid,
                     size_t frame_size,
-                    cv::Mat &save_bgr,
-                    cv::Mat &save_thermal)
+                    uint64_t *cam_ts_us)
 {
     struct timespec ts;
 
@@ -414,23 +503,18 @@ int run_live_fusion(thread_context_t *ctx,
     }
     
     memcpy(local_yuv, ctx->yuv_buf.yuv_data, frame_size);
+    if (cam_ts_us) *cam_ts_us = ctx->yuv_buf.meta.ts_us;
     ctx->yuv_buf.updated = 0;
     pthread_mutex_unlock(&ctx->yuv_buf.mutex);
 
-    if (*thermal_valid)
-    {
-        
-        cv_show_fusion_display(&last_thermal[0][0], local_yuv, save_bgr, save_thermal);
-        
-    }
-
-    return 1;
+    return *thermal_valid ? 1 : 0;
 }
 
 int try_sync_fusion(thread_context_t *ctx,
                     uint8_t *local_yuv,
                     uint16_t local_thermal[TH_THERMAL_ROWS][TH_THERMAL_COLS],
-                    size_t frame_size)
+                    size_t frame_size,
+                    uint64_t *selected_cam_ts_us)
 {
     struct timespec ts;
     uint64_t thermal_ts = 0;
@@ -495,9 +579,10 @@ fflush(stdout);
     }
     
     uint64_t cam_id = ctx->cam_queue.frames[best_idx].meta.frame_id;
-uint64_t cam_ts = ctx->cam_queue.frames[best_idx].meta.ts_us;
+    uint64_t cam_ts = ctx->cam_queue.frames[best_idx].meta.ts_us;
 
     memcpy(local_yuv, ctx->cam_queue.frames[best_idx].data, frame_size);
+    if (selected_cam_ts_us) *selected_cam_ts_us = cam_ts;
     pthread_mutex_unlock(&ctx->cam_queue.mutex);
     last_thermal_id = thermal_id;
 
@@ -546,7 +631,7 @@ void* opencv_thread(void *arg){
     static uint16_t last_thermal[TH_THERMAL_ROWS][TH_THERMAL_COLS];
     static int thermal_valid = 0;
     size_t frame_size = MIX_WIDTH * MIX_HEIGHT * 3 / 2;
-    static uint8_t *local_yuv = (uint8_t *)malloc(frame_size);
+    uint8_t *local_yuv = (uint8_t *)malloc(frame_size);
     static uint16_t local_thermal[TH_THERMAL_ROWS][TH_THERMAL_COLS];
 
     pthread_setname_np(pthread_self(), "opencv");
@@ -554,8 +639,10 @@ void* opencv_thread(void *arg){
     printf("opencv_thread start, tid=%d\n", tid);
 
     thread_context_t* ctx = (thread_context_t*)arg;
-    // int argc = ctx->thread_args.argc;
-    // char **argv = ctx->thread_args.argv;
+    if (!local_yuv) {
+        perror("allocate OpenCV frame buffer");
+        return NULL;
+    }
     // printf("opencv_thread!!!\n");
     Mat save_bgr, save_thermal;
 
@@ -566,11 +653,18 @@ void* opencv_thread(void *arg){
         如果某些线程卡在 IO 或 pthread_cond_wait()，还可能因为 race condition 没有正确退出。
     这时，虽然主线程退出了，但这些辅助线程仍存活，并可能触发大量的 wake_up_process() 内核软中断，导致 ksoftirqd 持续高占用。 */
     cv::setNumThreads(1);  //限制 OpenCV 使用线程数, 防止 OpenCV 多线程影响调度
+    pipeline_perf_init();
+
+    const char *model_path = (ctx->thread_args.argc >= 4)
+                                 ? ctx->thread_args.argv[3]
+                                 : "/home/cat/project_clean/yolov5/yolov5n.rknn";
+    if (yolov5_init(model_path) != 0) {
+        fprintf(stderr, "[RKNN] detector unavailable; fusion continues without YOLO\n");
+    }
 
     K_th = estimate_intrinsic_matrix(640, 360, fov_th);
     K_vis = estimate_intrinsic_matrix(640, 360, fov_vis);
 
-    struct timespec ts;
     // while(!ctx->cmd_req.exit_req){
     //     // 设置100ms超时,似乎解决了问题
     //     clock_gettime(CLOCK_REALTIME, &ts);
@@ -752,26 +846,48 @@ void* opencv_thread(void *arg){
         
         if (sync_fusion_flag)
         {
-            
-            int sync_ok = try_sync_fusion(ctx, local_yuv, local_thermal, frame_size);
+            uint64_t selected_cam_ts_us = 0;
+            const uint64_t wait_begin_us = now_us();
+            int sync_ok = try_sync_fusion(ctx, local_yuv, local_thermal, frame_size,
+                                          &selected_cam_ts_us);
+            pipeline_perf_record(PERF_SYNC_WAIT, wait_begin_us);
             
             if (sync_ok)
             {
                 cv_show_fusion_display(&local_thermal[0][0], local_yuv, save_bgr, save_thermal);
+                if (selected_cam_ts_us > 0 && now_us() >= selected_cam_ts_us) {
+                    perf_metric_record(&g_pipeline_perf[PERF_END_TO_END],
+                                       now_us() - selected_cam_ts_us);
+                }
             }
 
+            pipeline_perf_print_if_due();
             usleep(1000);
             continue;
         }
         
 
         
-        run_live_fusion(ctx, local_yuv, last_thermal, &thermal_valid, frame_size, save_bgr, save_thermal);
+        uint64_t selected_cam_ts_us = 0;
+        const uint64_t wait_begin_us = now_us();
+        int frame_ready = run_live_fusion(ctx, local_yuv, last_thermal, &thermal_valid,
+                                          frame_size, &selected_cam_ts_us);
+        pipeline_perf_record(PERF_SYNC_WAIT, wait_begin_us);
+        if (frame_ready) {
+            cv_show_fusion_display(&last_thermal[0][0], local_yuv, save_bgr, save_thermal);
+            if (selected_cam_ts_us > 0 && now_us() >= selected_cam_ts_us) {
+                perf_metric_record(&g_pipeline_perf[PERF_END_TO_END],
+                                   now_us() - selected_cam_ts_us);
+            }
+        }
+        pipeline_perf_print_if_due();
         
         usleep(1000);
     }
 
-    cv::destroyAllWindows();    
+    yolov5_deinit();
+    free(local_yuv);
+    cv::destroyAllWindows();
     
     return NULL;
 

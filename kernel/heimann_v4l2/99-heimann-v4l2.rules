@@ -1,0 +1,3 @@
+# Allow the application user (member of group "video") to read EEPROM and
+# use the legacy fallback node without running the complete pipeline as root.
+KERNEL=="heimann0", SUBSYSTEM=="misc", GROUP="video", MODE="0660"

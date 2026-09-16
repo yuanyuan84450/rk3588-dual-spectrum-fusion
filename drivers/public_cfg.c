@@ -36,6 +36,7 @@ int init_thermal_queue(thermal_queue_t *q) {
 
 void destroy_cam_queue(cam_queue_t *q) {
     for (int i = 0; i < CAM_QUEUE_SIZE; i++) {
+        //if (i == 0) continue;  // ASan/LSan test: intentionally leak one frame
         free(q->frames[i].data);
         q->frames[i].data = NULL;
     }

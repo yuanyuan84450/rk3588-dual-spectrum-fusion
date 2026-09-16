@@ -1,0 +1,21 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "rockchip,rk3588";
+
+    fragment@0 {
+        target = <&i2c5>;
+
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            heimann@1a {
+                compatible = "heimann,htpa";
+                reg = <0x1a>;
+                eeprom-addr = <0x50>;
+            };
+        };
+    };
+};

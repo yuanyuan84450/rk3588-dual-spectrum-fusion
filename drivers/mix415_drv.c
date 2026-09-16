@@ -16,6 +16,7 @@
 
 #include "mix415_drv.h"
 #include "opencv_draw.h"
+#include "perf_stats.h"
 #include "public_cfg.h"
 
 #define TARGET_FPS 30
@@ -31,6 +32,7 @@
 struct buffer {
     void *start;
     size_t length;
+    int dma_fd;
 };
 
 static struct buffer *buffers;
@@ -68,6 +70,23 @@ void* camera_thread(void *arg) {
         return (void*)-1;
     }
 
+    const size_t frame_size = MIX_WIDTH * MIX_HEIGHT * 3 / 2;
+    const struct v4l2_plane_pix_format *plane_format = &fmt.fmt.pix_mp.plane_fmt[0];
+    printf("[CAP] negotiated=%ux%u fourcc=%c%c%c%c stride=%u sizeimage=%u\n",
+           fmt.fmt.pix_mp.width, fmt.fmt.pix_mp.height,
+           fmt.fmt.pix_mp.pixelformat & 0xff,
+           (fmt.fmt.pix_mp.pixelformat >> 8) & 0xff,
+           (fmt.fmt.pix_mp.pixelformat >> 16) & 0xff,
+           (fmt.fmt.pix_mp.pixelformat >> 24) & 0xff,
+           plane_format->bytesperline, plane_format->sizeimage);
+    if (fmt.fmt.pix_mp.width != MIX_WIDTH || fmt.fmt.pix_mp.height != MIX_HEIGHT ||
+        fmt.fmt.pix_mp.pixelformat != V4L2_PIX_FMT_NV12 ||
+        plane_format->sizeimage < frame_size) {
+        fprintf(stderr, "Camera returned an unsupported format\n");
+        close(fd);
+        return (void *)-1;
+    }
+
     struct v4l2_requestbuffers req = {0};
     req.count = BUFFER_COUNT;
     req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
@@ -97,10 +116,31 @@ void* camera_thread(void *arg) {
             return (void*)-1;
         }
 
+        buffers[i].dma_fd = -1;
         buffers[i].length = buf.m.planes[0].length;
         buffers[i].start = mmap(NULL, buf.m.planes[0].length,
                                 PROT_READ | PROT_WRITE, MAP_SHARED,
                                 fd, buf.m.planes[0].m.mem_offset);
+        if (buffers[i].start == MAP_FAILED) {
+            perror("Mapping Buffer");
+            close(fd);
+            return (void *)-1;
+        }
+
+        struct v4l2_exportbuffer export_buffer;
+        memset(&export_buffer, 0, sizeof(export_buffer));
+        export_buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+        export_buffer.index = i;
+        export_buffer.plane = 0;
+        export_buffer.flags = O_CLOEXEC;
+        if (ioctl(fd, VIDIOC_EXPBUF, &export_buffer) == 0) {
+            buffers[i].dma_fd = export_buffer.fd;
+            printf("[CAP] buffer=%d exported dma_fd=%d length=%zu\n",
+                   i, buffers[i].dma_fd, buffers[i].length);
+        } else {
+            fprintf(stderr, "[CAP] buffer=%d VIDIOC_EXPBUF unavailable: %s\n",
+                    i, strerror(errno));
+        }
     }
 
     for (int i = 0; i < req.count; i++) {
@@ -129,10 +169,21 @@ void* camera_thread(void *arg) {
         return (void*)-1;
     }
 
-    int dequeue_fail_count = 0;
-
-    size_t frame_size = MIX_WIDTH * MIX_HEIGHT * 3 / 2; // NV12大小
     uint8_t *local_frame_buffer = malloc(frame_size); // 本地拷贝缓冲区
+    if (!local_frame_buffer) {
+        perror("Allocating camera frame buffer");
+        ioctl(fd, VIDIOC_STREAMOFF, &type);
+        close(fd);
+        return (void *)-1;
+    }
+
+    perf_metric_t select_metric, dequeue_metric, live_copy_metric, queue_copy_metric;
+    perf_metric_init(&select_metric, "capture_select");
+    perf_metric_init(&dequeue_metric, "capture_dqbuf");
+    perf_metric_init(&live_copy_metric, "capture_live_copy");
+    perf_metric_init(&queue_copy_metric, "capture_queue_copy");
+    uint64_t perf_last_print_us = now_us();
+    uint64_t perf_last_frame_count = 0;
 
     while(!ctx->cmd_req.exit_req) {
 
@@ -148,7 +199,9 @@ void* camera_thread(void *arg) {
         tv.tv_sec = 2;
         tv.tv_usec = 0;
 
+        const uint64_t select_begin_us = now_us();
         int r = select(fd + 1, &fds, NULL, NULL, &tv);
+        perf_metric_record(&select_metric, now_us() - select_begin_us);
         if (r == -1) {
             if (errno == EINTR)
                 continue;
@@ -173,6 +226,7 @@ void* camera_thread(void *arg) {
         usleep(1000);
 
         //取满数据缓冲区
+        const uint64_t dequeue_begin_us = now_us();
         if (ioctl(fd, VIDIOC_DQBUF, &buf) == -1) {
             // perror("Dequeue Buffer failed");
             // if (++dequeue_fail_count > MAX_DEQUEUE_FAIL) {
@@ -183,6 +237,7 @@ void* camera_thread(void *arg) {
             perror("Dequeue Buffer failed");
             break;  // 阻塞模式下一般不会走到这里，直接退出更安全
         }
+        perf_metric_record(&dequeue_metric, now_us() - dequeue_begin_us);
         
         if (cap_last_print == 0) cap_last_print = now_us();
 
@@ -201,15 +256,15 @@ void* camera_thread(void *arg) {
         cap_last_frame_ts = dq_ts;
         //到这
 
-        dequeue_fail_count = 0;
-
         uint64_t cam_ts = now_us();
         uint64_t next_cam_frame_id = cam_frame_id + 1;
 
         /* 1) 先更新老模式用的 yuv_buf */
         pthread_mutex_lock(&ctx->yuv_buf.mutex);
 
+        const uint64_t live_copy_begin_us = now_us();
         memcpy(local_frame_buffer, buffers[buf.index].start, frame_size);
+        perf_metric_record(&live_copy_metric, now_us() - live_copy_begin_us);
         ctx->yuv_buf.yuv_data = local_frame_buffer;
         ctx->yuv_buf.meta.frame_id = next_cam_frame_id;
         ctx->yuv_buf.meta.ts_us = cam_ts;
@@ -222,7 +277,9 @@ void* camera_thread(void *arg) {
         pthread_mutex_lock(&ctx->cam_queue.mutex);
 
         cam_frame_t *slot = &ctx->cam_queue.frames[ctx->cam_queue.write_idx];
+        const uint64_t queue_copy_begin_us = now_us();
         memcpy(slot->data, buffers[buf.index].start, frame_size);
+        perf_metric_record(&queue_copy_metric, now_us() - queue_copy_begin_us);
         slot->meta.frame_id = next_cam_frame_id;
         slot->meta.ts_us = cam_ts;
         slot->valid = 1;
@@ -238,11 +295,28 @@ void* camera_thread(void *arg) {
             break;
         }
 
+        const uint64_t perf_now_us = now_us();
+        if (perf_now_us - perf_last_print_us >= 5000000ULL) {
+            const uint64_t captured = cam_frame_id - perf_last_frame_count;
+            const double capture_fps = (double)captured * 1000000.0 /
+                                       (double)(perf_now_us - perf_last_print_us);
+            printf("[PERF] capture_fps=%.2f frame_bytes=%zu explicit_copies=2\n",
+                   capture_fps, frame_size);
+            perf_metric_print(&select_metric);
+            perf_metric_print(&dequeue_metric);
+            perf_metric_print(&live_copy_metric);
+            perf_metric_print(&queue_copy_metric);
+            fflush(stdout);
+            perf_last_frame_count = cam_frame_id;
+            perf_last_print_us = perf_now_us;
+        }
+
         
     }
     
     for (int i = 0; i < req.count; i++) {
         munmap(buffers[i].start, buffers[i].length);
+        if (buffers[i].dma_fd >= 0) close(buffers[i].dma_fd);
     }
     free(buffers);
     free(local_frame_buffer);
